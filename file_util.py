@@ -14,12 +14,6 @@ def load(filename):
 	"""Loads a compressed object from disk
 	"""
 	file = gzip.GzipFile(filename, 'rb')
-	buffer = ""
-	while 1:
-		data = file.read()
-		if data == "":
-			break
-		buffer += data
-	object = pickle.loads(buffer)
+	object = pickle.loads(file.read())
 	file.close()
 	return object
