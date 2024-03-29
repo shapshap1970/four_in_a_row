@@ -10,17 +10,9 @@ class FourInARow:
         self.max_play = max_play
         self.memoization = {}
 
-    def is_winner(self, player, board):
-        return board.is_winner(player, self.consecutive)
-
-    def possible_moves(self, board):
-        return board.possible_moves()
-
     def switch_player(self, current_player):
         return 'O' if current_player == 'X' else 'X'
 
-    def play_move(self, col, current_player):
-        self.board.play_move(col, current_player)
 
     ''' 2 X win
         1 draw
@@ -29,9 +21,9 @@ class FourInARow:
     '''
 
     def evaluate(self, board):
-        if self.is_winner('X', board):
+        if board.is_winner('X'):
             return 2
-        elif self.is_winner('O', board):
+        elif board.is_winner('O'):
             return -2
         # case full board
         if board.is_end_of_game():

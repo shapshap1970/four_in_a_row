@@ -1,6 +1,6 @@
 from collections import defaultdict
 import copy
-from display import print_board
+import display 
 
 
 class Board:
@@ -23,13 +23,7 @@ class Board:
         return value
 
     def print_board(self):
-        """ if self.board is None:
-            return
-        for row in self.board:
-            print('|'.join(row))
-        print('-' * (self.cols * 2 - 1))
-        print(' '.join(str(i) for i in range(self.cols))) """
-        print_board(self)
+        display.print_board(self)
 
     def possible_moves(self):
         return [(i, self.max_hight[i]) for i in range(self.cols) if self.max_hight[i] != -1]
