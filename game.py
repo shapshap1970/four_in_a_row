@@ -31,19 +31,31 @@ def load_model(game: FourInARow, rows, cols, consec_moves):
         game.memoization = pickle.load(fp)
     print_message('dictionary successfully loaded')
 
+def get_person_input(play_board):
+    while True:
+        try:
+            col = int(input("Enter the column number to drop: "))
+        except ValueError:
+            print_message('Not a valid input, please try again...')
+            continue
+        if not play_board.is_possible_move(col):
+            print_message('Not a valid move, please try again...')
+        else:
+            break
+    return col
 
 def main():
     CONSEC_TO_WIN = 4
-    CONSEC_MOVES = 2
-    ROWS = 5
-    COLS = 5
+    CONSEC_MOVES = 1
+    ROWS = 4
+    COLS = 4
     game = FourInARow(ROWS, COLS, CONSEC_TO_WIN, CONSEC_MOVES)
     play_board = Board(ROWS, COLS)
     train_model(game, play_board, ROWS, COLS, CONSEC_MOVES)
     load_model(game, ROWS, COLS, CONSEC_MOVES)
     play_board.print_board()
     game_run = True
-    col = int(input("Enter the column number to drop: "))
+    col = get_person_input(play_board)
     play_board.play_move(col, 'X', True)
     while game_run:
         for i in range(CONSEC_MOVES):
@@ -63,12 +75,7 @@ def main():
             break
 
         for _ in range(CONSEC_MOVES):
-            while True:
-                col = int(input("Enter the column number to drop: "))
-                if not play_board.is_possible_move(col):
-                    print_message('Not a valid move, please try again...')
-                else:
-                    break
+            col = get_person_input(play_board)
             play_board.play_move(col, 'X', True)
             if play_board.is_end_of_game():
                 print_message("Game Ended")

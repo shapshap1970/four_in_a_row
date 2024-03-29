@@ -3,11 +3,11 @@ from board import Board
 
 
 class FourInARow:
-    def __init__(self, rows=3, cols=3, consecutive=3, max_play=2):
+    def __init__(self, rows=3, cols=3, consec_to_win=3, consec_moves=2):
         self.rows = rows
         self.cols = cols
-        self.consecutive = consecutive
-        self.max_play = max_play
+        self.consec_to_win = consec_to_win
+        self.consec_moves = consec_moves
         self.memoization = {}
 
     def switch_player(self, current_player):
@@ -21,9 +21,9 @@ class FourInARow:
     '''
 
     def evaluate(self, board):
-        if board.is_winner('X'):
+        if board.is_winner('X', self.consec_to_win):
             return 2
-        elif board.is_winner('O'):
+        elif board.is_winner('O', self.consec_to_win):
             return -2
         # case full board
         if board.is_end_of_game():
@@ -39,7 +39,7 @@ class FourInARow:
 
     def next_number_of_play(self, number_of_play, first_play=False):
         if number_of_play == 1 or first_play:
-            return self.max_play
+            return self.consec_moves
         else:
             return number_of_play-1
 
@@ -48,8 +48,8 @@ class FourInARow:
         Minimax algorithm implementation.
         """
         # Check if the game is over or depth limit reached
-        if board.to_string() in self.memoization:
-            return self.memoization[board.to_string()]
+        if board.to_hash() in self.memoization:
+            return self.memoization[board.to_hash()]
         result = self.evaluate(board)
         if result is not None or depth == 0:
             return result, last_column
@@ -76,7 +76,7 @@ class FourInARow:
                     max_move = move[0]
                 if max_eval == 2:
                     break
-            self.memoization[board.to_string()] = max_eval, max_move
+            self.memoization[board.to_hash()] = max_eval, max_move
             print(len(self.memoization))
             return max_eval, max_move
         else:
@@ -99,5 +99,5 @@ class FourInARow:
                 if min_eval == -2:
                     break
             print(len(self.memoization))
-            self.memoization[board.to_string()] = min_eval, min_move
+            self.memoization[board.to_hash()] = min_eval, min_move
             return min_eval, min_move

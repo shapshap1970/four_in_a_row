@@ -1,6 +1,8 @@
 from collections import defaultdict
 import copy
-import display 
+import display
+from bitarray import bitarray
+from bitarray.util import ba2int
 
 
 class Board:
@@ -18,8 +20,19 @@ class Board:
             self.rows = board_obj.rows
             self.max_hight = copy.deepcopy(board_obj.max_hight)
 
-    def to_string(self):
-        value = str(self.board)
+    def to_hash(self):
+        '''Each cell is represented by 2 bits:\
+            00 - No value
+            01 - 'X'
+            10 - 'O'
+        '''
+        bit_array = bitarray(2*self.cols*self.rows)
+        map = {'X': [0, 1], 'O': [1, 0], ' ': [0, 0]}
+            
+        for row in range(self.rows):
+            for col in range(self.cols):
+                bit_array.extend(map[self.board[row][col]])
+        value = ba2int(bit_array)        
         return value
 
     def print_board(self):
@@ -34,9 +47,9 @@ class Board:
         self.max_hight[col] -= 1
         if (to_print):
             self.print_board()
-    
+
     def is_possible_move(self, col):
-        return True if self.max_hight[col] != -1 else False
+        return True if self.max_hight[col] != -1 and 0 <= col < self.cols else False
 
     def is_end_of_game(self):
         return len(self.possible_moves()) == 0
