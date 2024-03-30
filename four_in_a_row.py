@@ -47,10 +47,10 @@ class FourInARow:
         """
         Minimax algorithm implementation.
         """
-        # Check if the game is over or depth limit reached
         if board.to_hash() in self.memoization:
             return self.memoization[board.to_hash()]
         result = self.evaluate(board)
+        # Check if the game is over or depth limit reached
         if result is not None or depth == 0:
             return result, last_column
 
