@@ -60,7 +60,21 @@ def get_game_property_input():
                 continue 
         else:
             break
-    return cols, rows, moves
+    
+    while True:
+        try:
+            value = int(input("who starts? (1) You (2) AI "))
+        except ValueError:
+            print_message('Not a valid input, please try again...')
+            continue
+        if not moves in [1,2]: 
+                continue 
+        else:
+            map = {1:"Player", 2:"AI"}
+            starter = map[value]
+            break
+
+    return cols, rows, moves, starter
 
 def get_person_input(play_board):
     while True:
@@ -80,19 +94,27 @@ def get_cont_input():
         answer = input("Another match? (y/n) ")
         if answer.lower() in ['y', 'n']:
             break
-    return answer
+    return answer=='y'
 
-def game_run(play_board, consec_moves, game):
+def game_run(play_board, consec_moves, game, starter):
     play_board.print_board()
     game_run = True
-    col = get_person_input(play_board)
+    col = None
+    if starter == "Player":
+        col = get_person_input(play_board)
+    else:
+        max_eval, col = game.minimax(
+                play_board, 25, 'X', consec_moves, col)
     play_board.play_move(col, 'X', True)
     while game_run:
         for i in range(consec_moves):
-            max_eval, best_move = game.minimax(
+            if starter == "Player":
+                max_eval, col = game.minimax(
                 play_board, 25, 'O', consec_moves, col)
-            print_huristic_message(max_eval)
-            play_board.play_move(best_move, 'O', True)
+                print_huristic_message(max_eval)
+            else:
+                col = get_person_input(play_board)
+            play_board.play_move(col, 'O', True)
             if game.evaluate(play_board) in [2, -2]:
                 print_message("Game Over O wins")
                 game_run = False
@@ -105,7 +127,12 @@ def game_run(play_board, consec_moves, game):
             break
 
         for _ in range(consec_moves):
-            col = get_person_input(play_board)
+            if starter == "Player":
+                col = get_person_input(play_board)
+            else:
+                max_eval, col = game.minimax(
+                play_board, 25, 'X', consec_moves, col)
+                print_huristic_message(max_eval)
             play_board.play_move(col, 'X', True)
             if play_board.is_end_of_game():
                 print_message("Game Ended")
@@ -121,14 +148,15 @@ def main():
     CONSEC_MOVES = 1
     ROWS = 5
     COLS = 5
-    COLS, ROWS, CONSEC_MOVES = get_game_property_input()
+    STARTER = "You"
+    COLS, ROWS, CONSEC_MOVES, STARTER = get_game_property_input()
     game = FourInARow(ROWS, COLS, CONSEC_TO_WIN, CONSEC_MOVES)
     play_board = Board(ROWS, COLS)
     file = f'memoization_cache.pkl-{ROWS}-{COLS}-{CONSEC_TO_WIN}-{CONSEC_MOVES}.zip'
     train_model(game, play_board, file)
     load_model(game, file)
     while True:
-        game_run(play_board, CONSEC_MOVES, game)
+        game_run(play_board, CONSEC_MOVES, game, STARTER)
         if get_cont_input():
             play_board = Board(ROWS, COLS)
         else:
