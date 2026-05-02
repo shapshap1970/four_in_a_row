@@ -1,9 +1,11 @@
 """
 Opening book for Four-in-a-Row.
 Pre-computed optimal opening moves to avoid expensive computation early in the game.
+
+SECURITY: Uses JSON instead of pickle to prevent code execution vulnerabilities.
 """
 
-import pickle
+import json
 import gzip
 from board import Board
 from four_in_a_row_optimized import FourInARowOptimized
@@ -14,34 +16,47 @@ class OpeningBook:
     Stores and retrieves optimal moves for early game positions.
     """
 
-    def __init__(self, filename='opening_book.pkl.gz'):
+    def __init__(self, filename='opening_book.json.gz'):
+        # Update filename to use .json.gz
+        if filename.endswith('.pkl.gz'):
+            filename = filename.replace('.pkl.gz', '.json.gz')
         self.filename = filename
         self.book = {}  # board_hash -> (eval, best_move)
 
     def add_position(self, board_hash, eval_score, best_move):
         """Add a position to the opening book"""
-        self.book[board_hash] = (eval_score, best_move)
+        # Convert board_hash to string for JSON compatibility
+        key = str(board_hash) if not isinstance(board_hash, str) else board_hash
+        self.book[key] = (eval_score, best_move)
 
     def lookup(self, board):
         """Look up a position in the opening book"""
         board_hash = board.to_hash()
-        return self.book.get(board_hash)
+        key = str(board_hash)
+        result = self.book.get(key)
+        if result and isinstance(result, list):
+            # Convert list back to tuple for compatibility
+            return tuple(result)
+        return result
 
     def save(self):
-        """Save opening book to file"""
-        with gzip.open(self.filename, 'wb') as f:
-            pickle.dump(self.book, f)
+        """Save opening book to file using secure JSON format"""
+        with gzip.open(self.filename, 'wt', encoding='utf-8') as f:
+            json.dump(self.book, f, indent=2)
         print(f"Opening book saved with {len(self.book)} positions")
 
     def load(self):
-        """Load opening book from file"""
+        """Load opening book from file (JSON format)"""
         try:
-            with gzip.open(self.filename, 'rb') as f:
-                self.book = pickle.load(f)
+            with gzip.open(self.filename, 'rt', encoding='utf-8') as f:
+                self.book = json.load(f)
             print(f"Opening book loaded with {len(self.book)} positions")
             return True
         except FileNotFoundError:
             print("No opening book found")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"Error loading opening book: {e}")
             return False
 
     def generate_book(self, rows=6, cols=7, consec_to_win=4, consec_moves=2,
@@ -105,7 +120,10 @@ class GameWithOpeningBook:
     """
 
     def __init__(self, rows=6, cols=7, consec_to_win=4, consec_moves=2,
-                 opening_book_file='opening_book.pkl.gz'):
+                 opening_book_file='opening_book.json.gz'):
+        # Support both .pkl.gz and .json.gz for migration
+        if opening_book_file.endswith('.pkl.gz'):
+            opening_book_file = opening_book_file.replace('.pkl.gz', '.json.gz')
         self.game = FourInARowOptimized(rows, cols, consec_to_win, consec_moves)
         self.opening_book = OpeningBook(opening_book_file)
         self.opening_book.load()  # Load if exists

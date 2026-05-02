@@ -2,9 +2,11 @@
 """
 Generate opening book for fast gameplay
 Pre-computes first N moves deeply so gameplay is instant
+
+SECURITY: Uses JSON instead of pickle to prevent code execution vulnerabilities.
 """
 
-import pickle
+import json
 import gzip
 import time
 from board import Board
@@ -12,9 +14,12 @@ from four_in_a_row_optimized import FourInARowOptimized
 
 
 class OpeningBookGenerator:
-    """Generates and manages opening book"""
+    """Generates and manages opening book using secure JSON format"""
 
-    def __init__(self, filename='opening_book.pkl.gz'):
+    def __init__(self, filename='opening_book.json.gz'):
+        # Convert .pkl.gz to .json.gz if needed
+        if filename.endswith('.pkl.gz'):
+            filename = filename.replace('.pkl.gz', '.json.gz')
         self.filename = filename
         self.book = {}
 
@@ -72,7 +77,9 @@ class OpeningBookGenerator:
                 current_player, number_of_play, None, first_play
             )
 
-            self.book[board_hash] = (eval_score, best_move)
+            # Convert board_hash to string for JSON compatibility
+            key = str(board_hash)
+            self.book[key] = (eval_score, best_move)
 
             # Explore main continuation
             if best_move is not None and move_count < max_moves:
@@ -100,24 +107,27 @@ class OpeningBookGenerator:
         self.save()
 
     def save(self):
-        """Save opening book to file"""
+        """Save opening book to file using secure JSON format"""
         print(f"\n💾 Saving to {self.filename}...")
-        with gzip.open(self.filename, 'wb') as f:
-            pickle.dump(self.book, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with gzip.open(self.filename, 'wt', encoding='utf-8') as f:
+            json.dump(self.book, f, indent=2)
 
         import os
         size_mb = os.path.getsize(self.filename) / (1024 * 1024)
         print(f"   ✓ Saved {len(self.book):,} positions ({size_mb:.1f} MB)")
 
     def load(self):
-        """Load opening book from file"""
+        """Load opening book from file (JSON format)"""
         try:
-            with gzip.open(self.filename, 'rb') as f:
-                self.book = pickle.load(f)
+            with gzip.open(self.filename, 'rt', encoding='utf-8') as f:
+                self.book = json.load(f)
             print(f"✓ Loaded {len(self.book):,} positions from {self.filename}")
             return True
         except FileNotFoundError:
             print(f"✗ Opening book not found: {self.filename}")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"✗ Error loading opening book: {e}")
             return False
 
 
@@ -150,9 +160,12 @@ if __name__ == "__main__":
         max_moves, search_depth = 10, 12
         print("\n📝 Standard opening book (10 moves, ~15 minutes)")
 
-    filename = input(f"\nOutput filename (default=opening_book_7x6.pkl.gz): ").strip()
+    filename = input(f"\nOutput filename (default=opening_book_7x6.json.gz): ").strip()
     if not filename:
-        filename = "opening_book_7x6.pkl.gz"
+        filename = "opening_book_7x6.json.gz"
+    elif filename.endswith('.pkl.gz'):
+        filename = filename.replace('.pkl.gz', '.json.gz')
+        print(f"   → Using JSON format: {filename}")
 
     # Confirm
     print(f"\n⚠️  This will generate an opening book:")

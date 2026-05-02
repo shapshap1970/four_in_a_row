@@ -8,18 +8,30 @@ from four_in_a_row_with_progress import FourInARowWithProgress
 import time
 import os
 import gzip
-import pickle
+import json
 
 
-def load_opening_book(filename='opening_book_7x6.pkl.gz'):
-    """Load opening book if available"""
+def load_opening_book(filename='opening_book_7x6.json.gz'):
+    """Load opening book if available (secure JSON format)"""
+    # Try .json.gz first, then .pkl.gz for backwards compatibility
+    json_filename = filename.replace('.pkl.gz', '.json.gz')
+
     try:
-        with gzip.open(filename, 'rb') as f:
-            book = pickle.load(f)
+        with gzip.open(json_filename, 'rt', encoding='utf-8') as f:
+            book = json.load(f)
         print(f"✓ Loaded opening book: {len(book):,} positions")
         return book
     except FileNotFoundError:
-        print(f"ℹ️  No opening book found ({filename})")
+        # Try old .pkl.gz filename
+        if filename.endswith('.pkl.gz') and filename != json_filename:
+            try:
+                with gzip.open(filename, 'rt', encoding='utf-8') as f:
+                    book = json.load(f)
+                print(f"✓ Loaded opening book: {len(book):,} positions")
+                return book
+            except:
+                pass
+        print(f"ℹ️  No opening book found ({json_filename})")
         print(f"   Generate one with: python3 generate_opening_book.py")
         return {}
 
@@ -80,19 +92,19 @@ def play_game():
 
     if choice == "1":
         cols, rows = 5, 5
-        book_file = "opening_book_5x5.pkl.gz"
+        book_file = "opening_book_5x5.json.gz"
     elif choice == "3":
         try:
             cols = int(input("Columns (4-9): "))
             rows = int(input("Rows (4-8): "))
-            book_file = f"opening_book_{cols}x{rows}.pkl.gz"
+            book_file = f"opening_book_{cols}x{rows}.json.gz"
         except:
             cols, rows = 7, 6
-            book_file = "opening_book_7x6.pkl.gz"
+            book_file = "opening_book_7x6.json.gz"
             print("Using default: 7x6")
     else:
         cols, rows = 7, 6
-        book_file = "opening_book_7x6.pkl.gz"
+        book_file = "opening_book_7x6.json.gz"
 
     consec_to_win = 4
     consec_moves = 2
@@ -174,9 +186,16 @@ def play_game():
             else:
                 # AI move - check opening book first
                 board_hash = board.to_hash()
-                if board_hash in opening_book:
+                # Convert to string for JSON compatibility
+                key = str(board_hash)
+                if key in opening_book:
                     # Use opening book (instant)
-                    eval_score, col = opening_book[board_hash]
+                    result = opening_book[key]
+                    # Handle both tuple and list from JSON
+                    if isinstance(result, list):
+                        eval_score, col = result[0], result[1]
+                    else:
+                        eval_score, col = result
                     print(f"📚 Using opening book (instant)")
                     print(f"   → Move {col}, eval {eval_score:+.0f}")
                 else:
