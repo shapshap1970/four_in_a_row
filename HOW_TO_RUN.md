@@ -1,6 +1,30 @@
 # How to Run Your Four-in-a-Row Game
 
-## Quick Start (Easiest Way) ⭐
+## 🎮 Modern GUI Version (NEW!) ⭐⭐⭐
+
+### Play with Modern Graphical Interface
+
+```bash
+python3 play_game_gui.py
+```
+
+**Features:**
+- 🎨 Beautiful visual board with colors
+- 🖱️ Click columns to play (no typing!)
+- 📊 Real-time AI progress display
+- ⚙️ Easy configuration dialog
+- 📚 Opening book support
+
+**Perfect for:**
+- Visual learners
+- Casual players
+- Anyone who prefers GUI over CLI
+
+[See detailed GUI guide](GUI_GUIDE.md)
+
+---
+
+## Quick Start (CLI Version) ⭐
 
 ### Play Against the Optimized AI
 
@@ -332,7 +356,7 @@ AI speed? (1=Fast/2s, 2=Normal/5s, 3=Strong/10s, default=2): [Enter]
 
 ## Summary
 
-**To play right now:**
+**To play with modern GUI (recommended):**
 
 1. Open terminal
 2. Navigate to project directory:
@@ -341,11 +365,25 @@ AI speed? (1=Fast/2s, 2=Normal/5s, 3=Strong/10s, default=2): [Enter]
    ```
 3. Run:
    ```bash
-   python3 play_game.py
+   python3 play_game_gui.py
    ```
-4. Press Enter for all defaults
-5. Play!
+4. Configure in the dialog
+5. Click to play!
+
+**To play with CLI (terminal-based):**
+
+1. Navigate to project directory
+2. Run:
+   ```bash
+   python3 play_game_fast.py
+   ```
+3. Press Enter for all defaults
+4. Type column numbers to play
 
 **That's it!** 🎮
+
+### Choose Your Interface:
+- **GUI** (`play_game_gui.py`): Visual, click-to-play, modern
+- **CLI** (`play_game_fast.py`): Terminal, keyboard, classic
 
 Enjoy your optimized Four-in-a-Row game!
