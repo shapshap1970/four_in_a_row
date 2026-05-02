@@ -139,16 +139,27 @@ def load_opening_book(filename='opening_book_7x6.json.gz'):
     # Try .json.gz first, then .pkl.gz for backwards compatibility
     json_filename = filename.replace('.pkl.gz', '.json.gz')
 
+    # Get the correct path for PyInstaller bundled files
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle
+        base_path = sys._MEIPASS
+    else:
+        # Running as normal Python script
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    json_filepath = os.path.join(base_path, json_filename)
+
     try:
-        with gzip.open(json_filename, 'rt', encoding='utf-8') as f:
+        with gzip.open(json_filepath, 'rt', encoding='utf-8') as f:
             book = json.load(f)
         print(f"{Colors.GREEN}✓ Loaded opening book: {len(book):,} positions{Colors.RESET}")
         return book
     except FileNotFoundError:
         # Try old .pkl.gz filename
         if filename.endswith('.pkl.gz') and filename != json_filename:
+            pkl_filepath = os.path.join(base_path, filename)
             try:
-                with gzip.open(filename, 'rt', encoding='utf-8') as f:
+                with gzip.open(pkl_filepath, 'rt', encoding='utf-8') as f:
                     book = json.load(f)
                 print(f"{Colors.GREEN}✓ Loaded opening book: {len(book):,} positions{Colors.RESET}")
                 return book
