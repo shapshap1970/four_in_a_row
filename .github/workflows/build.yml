@@ -37,9 +37,15 @@ jobs:
         pip3 install pyinstaller
         if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
 
-    - name: Build
+    - name: Build (Windows)
+      if: runner.os == 'Windows'
       run: |
-        pyinstaller --onefile play_game_beautiful.py
+        pyinstaller --onefile --add-data "opening_book_7x6.json.gz;." play_game_beautiful.py
+
+    - name: Build (macOS)
+      if: runner.os != 'Windows'
+      run: |
+        pyinstaller --onefile --add-data "opening_book_7x6.json.gz:." play_game_beautiful.py
 
     - uses: actions/upload-artifact@v4
       with:
