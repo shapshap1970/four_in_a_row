@@ -17,83 +17,47 @@ class FourInARowWithProgress(FourInARowOptimized):
         super().__init__(rows, cols, consec_to_win, consec_moves)
         self.show_progress = show_progress
 
-    def iterative_deepening_search(self, board, max_time_seconds, current_player,
-                                    number_of_play, last_column):
+    def fixed_depth_search(self, board, search_depth, current_player,
+                          number_of_play, last_column):
         """
-        Iterative deepening with progress display and strict time control
+        Fixed depth search with progress display
         """
         start_time = time.time()
-        best_move = None
-        best_eval = None
-        depth = 1
 
         if self.show_progress:
-            print("🤖 Thinking: ", end="", flush=True)
+            print(f"🤖 Thinking at depth {search_depth}...", end="", flush=True)
 
-        # Always search at least depth 1
-        while True:
-            elapsed = time.time() - start_time
+        try:
+            eval_score, move = self.minimax_alpha_beta(
+                board, search_depth, -math.inf, math.inf,
+                current_player, number_of_play, last_column
+            )
 
-            # Strict time check - leave 0.5s buffer for cleanup
-            if elapsed >= max_time_seconds - 0.5 and depth > 1:
-                if self.show_progress:
-                    print(f" ⏱️ Time limit reached")
-                break
-
-            try:
-                depth_start = time.time()
-                eval_score, move = self.minimax_alpha_beta(
-                    board, depth, -math.inf, math.inf,
-                    current_player, number_of_play, last_column
-                )
-
-                best_eval = eval_score
-                best_move = move
-
-                # Progress indicator
-                if self.show_progress:
-                    depth_time = time.time() - depth_start
-                    print(f"[D{depth}={eval_score:+.0f}({depth_time:.1f}s)] ", end="", flush=True)
-
-                # If found definite win/loss, stop early
+            if self.show_progress:
+                total_time = time.time() - start_time
                 if abs(eval_score) >= 10000:
-                    if self.show_progress:
-                        if eval_score > 0:
-                            print("✓ Found forced win!")
-                        else:
-                            print("⚠ Detected forced loss")
-                    break
+                    if eval_score > 0:
+                        print(f" ✓ Forced win found!")
+                    else:
+                        print(f" ⚠ Forced loss detected")
+                print(f"\n   → Move {move}, eval {eval_score:+.0f}, depth {search_depth}, {total_time:.2f}s")
 
-                depth += 1
+            return eval_score, move
 
-                # Safety limit on depth
-                if depth > 20:
-                    if self.show_progress:
-                        print(" 🎯 Max depth reached")
-                    break
-
-                # Check time again before starting next depth
-                if time.time() - start_time >= max_time_seconds - 0.5:
-                    if self.show_progress:
-                        print(" ⏱️ Time limit")
-                    break
-
-            except KeyboardInterrupt:
-                if self.show_progress:
-                    print(" ⚠️ Interrupted")
-                break
-
-        if self.show_progress:
-            total_time = time.time() - start_time
-            print(f"\n   → Move {best_move}, eval {best_eval:+.0f}, depth {depth-1}, {total_time:.2f}s")
-
-        return best_eval, best_move
+        except KeyboardInterrupt:
+            if self.show_progress:
+                print(" ⚠️ Interrupted")
+            # Return first valid move as fallback
+            moves = board.possible_moves()
+            if moves:
+                return 0, moves[0][0]
+            return 0, None
 
     def get_best_move(self, board, current_player, number_of_play,
                       last_column=None, max_time=5.0):
         """
-        Public interface with progress display
+        Public interface with progress display - always searches to depth 12
         """
-        return self.iterative_deepening_search(
-            board, max_time, current_player, number_of_play, last_column
+        return self.fixed_depth_search(
+            board, 12, current_player, number_of_play, last_column
         )
