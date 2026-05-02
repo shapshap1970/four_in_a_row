@@ -49,31 +49,34 @@ def print_header():
 
 
 def print_board(board):
-    """Print beautiful board with colors (2x bigger)"""
-    # Top border - double width
-    print(f"\n{Colors.BOLD}{Colors.BLUE}    ╔{'══════╤' * (board.cols - 1)}══════╗{Colors.RESET}")
+    """Print beautiful polished board with colors"""
+    # Top border
+    print(f"\n{Colors.BOLD}{Colors.BLUE}      ╔{'═══════╤' * (board.cols - 1)}═══════╗{Colors.RESET}")
 
     for row in range(board.rows):
-        # Row content - first line (empty space for height)
-        print(f"{Colors.BOLD}{Colors.BLUE}    ║{Colors.RESET}", end="")
+        # Empty line above pieces for spacing
+        print(f"{Colors.BOLD}{Colors.BLUE}      ║{Colors.RESET}", end="")
         for col in range(board.cols):
-            print(f"      ", end="")  # 6 spaces
+            print(f"       ", end="")
             if col < board.cols - 1:
                 print(f"{Colors.BLUE}│{Colors.RESET}", end="")
         print(f"{Colors.BOLD}{Colors.BLUE}║{Colors.RESET}")
 
-        # Row content - second line (with pieces)
-        print(f"{Colors.BOLD}{Colors.BLUE} {board.rows - row}  ║{Colors.RESET}", end="")
+        # Main line with pieces and row number
+        print(f"{Colors.BOLD}{Colors.CYAN}   {board.rows - row}  {Colors.BLUE}║{Colors.RESET}", end="")
 
         for col in range(board.cols):
             cell = board.board[row][col]
 
             if cell == 'X':
-                piece = f"{Colors.RED}{Colors.BOLD}  ⬤  {Colors.RESET}"  # Larger circle
+                # Red piece with nice spacing
+                piece = f"{Colors.RED}{Colors.BOLD}   ⬤   {Colors.RESET}"
             elif cell == 'O':
-                piece = f"{Colors.YELLOW}{Colors.BOLD}  ⬤  {Colors.RESET}"  # Larger circle
+                # Yellow piece with nice spacing
+                piece = f"{Colors.YELLOW}{Colors.BOLD}   ⬤   {Colors.RESET}"
             else:
-                piece = f"{Colors.WHITE}  ·  {Colors.RESET}"  # Small dot
+                # Empty cell with subtle dot
+                piece = f"{Colors.WHITE}   ·   {Colors.RESET}"
 
             print(piece, end="")
 
@@ -82,25 +85,25 @@ def print_board(board):
 
         print(f"{Colors.BOLD}{Colors.BLUE}║{Colors.RESET}")
 
-        # Row content - third line (empty space for height)
-        print(f"{Colors.BOLD}{Colors.BLUE}    ║{Colors.RESET}", end="")
+        # Empty line below pieces for spacing
+        print(f"{Colors.BOLD}{Colors.BLUE}      ║{Colors.RESET}", end="")
         for col in range(board.cols):
-            print(f"      ", end="")  # 6 spaces
+            print(f"       ", end="")
             if col < board.cols - 1:
                 print(f"{Colors.BLUE}│{Colors.RESET}", end="")
         print(f"{Colors.BOLD}{Colors.BLUE}║{Colors.RESET}")
 
-        # Row separator
+        # Row separator (between rows)
         if row < board.rows - 1:
-            print(f"{Colors.BOLD}{Colors.BLUE}    ╟{'──────┼' * (board.cols - 1)}──────╢{Colors.RESET}")
+            print(f"{Colors.BOLD}{Colors.BLUE}      ╟{'═══════╪' * (board.cols - 1)}═══════╢{Colors.RESET}")
 
-    # Bottom border - double width
-    print(f"{Colors.BOLD}{Colors.BLUE}    ╚{'══════╧' * (board.cols - 1)}══════╝{Colors.RESET}")
+    # Bottom border
+    print(f"{Colors.BOLD}{Colors.BLUE}      ╚{'═══════╧' * (board.cols - 1)}═══════╝{Colors.RESET}")
 
-    # Column numbers - double spacing
-    print(f"{Colors.BOLD}{Colors.CYAN}       ", end="")
+    # Column numbers
+    print(f"{Colors.BOLD}{Colors.CYAN}         ", end="")
     for col in range(board.cols):
-        print(f"  {col}   ", end="")  # Double spacing
+        print(f"   {col}    ", end="")
     print(f"{Colors.RESET}\n")
 
 
