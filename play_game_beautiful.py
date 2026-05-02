@@ -9,6 +9,23 @@ import time
 import os
 import gzip
 import json
+import sys
+
+# Enable ANSI colors on Windows
+if os.name == 'nt':  # Windows
+    try:
+        # Enable ANSI escape sequences in Windows 10+ Console
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+    except:
+        pass
+    # Set UTF-8 encoding for unicode characters
+    if sys.stdout.encoding != 'utf-8':
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except:
+            pass
 
 # ANSI color codes
 class Colors:
