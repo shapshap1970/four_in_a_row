@@ -27,7 +27,7 @@ jobs:
 
     - name: Build EXE
       run: |
-        pyinstaller --onefile your_app.py
+        pyinstaller --onefile play_game_beautiful.py.py
 
     - name: Upload EXE artifact
       uses: actions/upload-artifact@v4
