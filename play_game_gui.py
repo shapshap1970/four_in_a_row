@@ -21,6 +21,18 @@ class FourInARowGUI:
         self.root.title("🎮 Four-in-a-Row")
         self.root.configure(bg='#2c3e50')
 
+        # Set minimum window size
+        self.root.minsize(600, 600)
+
+        # Center window on screen
+        window_width = 700
+        window_height = 700
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
         # Game state
         self.board = None
         self.game = None
@@ -54,6 +66,11 @@ class FourInARowGUI:
         self.highlight_color = '#2ecc71'
 
         self.setup_ui()
+
+        # Force window to appear and update
+        self.root.update_idletasks()
+        self.root.deiconify()
+
         self.show_config_dialog()
 
     def setup_ui(self):
@@ -99,9 +116,14 @@ class FourInARowGUI:
             length=400
         )
 
-        # Canvas for board
-        self.canvas_frame = tk.Frame(self.root, bg='#2c3e50')
-        self.canvas_frame.pack(pady=10)
+        # Canvas for board with border to make it visible
+        self.canvas_frame = tk.Frame(
+            self.root,
+            bg='#2c3e50',
+            relief=tk.SUNKEN,
+            borderwidth=3
+        )
+        self.canvas_frame.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
 
         # Buttons
         self.button_frame = tk.Frame(self.root, bg='#2c3e50', pady=10)
@@ -245,24 +267,43 @@ class FourInARowGUI:
                 self.ai_player = 'X'
 
             dialog.destroy()
+            self.root.update_idletasks()  # Force update
             self.start_new_game()
 
+        button_frame = tk.Frame(dialog, bg='#34495e')
+        button_frame.pack(pady=30)
+
         tk.Button(
-            dialog,
+            button_frame,
             text="Start Game",
             command=start_game,
             font=('Arial', 14, 'bold'),
             bg='#27ae60',
             fg='white',
-            padx=30,
-            pady=10
-        ).pack(pady=30)
+            padx=40,
+            pady=12,
+            relief=tk.RAISED,
+            cursor='hand2'
+        ).pack()
 
+        # Make dialog modal and centered
         dialog.transient(self.root)
         dialog.grab_set()
 
+        # Center the dialog
+        dialog.update_idletasks()
+        dialog_width = 400
+        dialog_height = 450
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - dialog_width) // 2
+        y = (screen_height - dialog_height) // 2
+        dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+
     def start_new_game(self):
         """Initialize a new game"""
+        print(f"\n🎮 Starting new game: {self.cols}x{self.rows} board")
+
         # Load opening book
         book_file = f"opening_book_{self.cols}x{self.rows}.pkl.gz"
         try:
@@ -295,24 +336,41 @@ class FourInARowGUI:
             self.canvas.destroy()
 
         canvas_width = self.cols * self.cell_size
-        canvas_height = self.rows * self.cell_size
+        canvas_height = self.rows * self.cell_size + 30  # Extra space for column numbers
 
         self.canvas = tk.Canvas(
             self.canvas_frame,
             width=canvas_width,
             height=canvas_height,
-            bg=self.bg_color,
-            highlightthickness=2,
-            highlightbackground='#2c3e50'
+            bg='#2c3e50',  # Dark background
+            highlightthickness=3,
+            highlightbackground='#ecf0f1'
         )
         self.canvas.pack()
+        print(f"✓ Canvas created: {canvas_width}x{canvas_height}")
 
         # Bind click events
         self.canvas.bind('<Button-1>', self.on_canvas_click)
         self.canvas.bind('<Motion>', self.on_canvas_hover)
 
         self.draw_board()
+        print(f"✓ Board drawn")
         self.update_status()
+        print(f"✓ Status updated")
+
+        # Update window size to fit board - ensure it's visible
+        self.root.update_idletasks()
+        window_width = max(canvas_width + 40, 600)
+        window_height = canvas_height + 300
+
+        # Center window on screen
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.root.update()
 
         # If AI goes first, make AI move
         if self.current_player == self.ai_player:
@@ -360,13 +418,14 @@ class FourInARowGUI:
                     tags='piece'
                 )
 
-        # Draw column numbers at top
+        # Draw column numbers at bottom
         for col in range(self.cols):
             x = col * self.cell_size + self.cell_size // 2
+            y = self.rows * self.cell_size + 15
             self.canvas.create_text(
-                x, -15,
+                x, y,
                 text=str(col),
-                font=('Arial', 12, 'bold'),
+                font=('Arial', 14, 'bold'),
                 fill='#ecf0f1',
                 tags='colnum'
             )
