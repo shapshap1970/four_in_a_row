@@ -1,2 +1,9 @@
+# Core dependencies (for gameplay)
+# None required! Uses only Python standard library
+
+# Optional: For building Windows executable
+pyinstaller>=6.0.0
+
+# Legacy dependencies (not used by main game)
 rich
 bitarray
