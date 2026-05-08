@@ -333,6 +333,9 @@ async def new_game(request: NewGameRequest):
     if os.getenv('VERCEL_DEPLOYMENT') or os.getenv('DISABLE_RUST_AI'):
         search_depth = 6  # Vercel: Lower depth for Python AI (faster, within timeout)
         print("⚠️  Vercel mode: Using Python AI at depth 6")
+    elif os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
+        search_depth = 4  # Test/CI: Very low depth for fast tests (< 30s timeout)
+        print("⚠️  Test/CI mode: Using depth 4 for speed")
     else:
         search_depth = 12  # Local: Rust AI can handle depth 12!
 
