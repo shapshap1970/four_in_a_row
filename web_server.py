@@ -23,9 +23,15 @@ from rust_ai_wrapper import compute_move_rust, is_rust_ai_available
 try:
     from four_in_a_row_numba import FourInARowNumba
     NUMBA_AVAILABLE = True
-except ImportError:
+    print("✓ Numba successfully imported")
+except ImportError as e:
     NUMBA_AVAILABLE = False
     FourInARowNumba = None
+    print(f"⚠️ Numba import failed: {e}")
+except Exception as e:
+    NUMBA_AVAILABLE = False
+    FourInARowNumba = None
+    print(f"⚠️ Numba error: {e}")
 
 # Game session storage
 games: Dict[str, dict] = {}
@@ -343,10 +349,11 @@ async def new_game(request: NewGameRequest):
             search_depth = 10  # Numba can handle depth 10 on Vercel!
             print("✓ Vercel mode: Using Numba AI at depth 10 (5-10x faster!)")
         else:
+            # Fallback: Python AI but at least use depth 8 for better play
             ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
                                              consec_moves=2, show_progress=False)
-            search_depth = 6
-            print("⚠️  Vercel mode: Numba not available, using Python AI at depth 6")
+            search_depth = 8  # Increased from 6 - better quality even without Numba
+            print("⚠️  Vercel mode: Numba not available, using Python AI at depth 8 (slower but stronger)")
     elif os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
         # Test/CI: Very low depth for speed
         ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
