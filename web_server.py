@@ -349,11 +349,11 @@ async def new_game(request: NewGameRequest):
             search_depth = 10  # Numba can handle depth 10 on Vercel!
             print("✓ Vercel mode: Using Numba AI at depth 10 (5-10x faster!)")
         else:
-            # Fallback: Python AI but at least use depth 8 for better play
+            # Fallback: Python AI at depth 10 (slower but stronger)
             ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
                                              consec_moves=2, show_progress=False)
-            search_depth = 8  # Increased from 6 - better quality even without Numba
-            print("⚠️  Vercel mode: Numba not available, using Python AI at depth 8 (slower but stronger)")
+            search_depth = 10  # Better quality even without Numba (will be slow)
+            print("⚠️  Vercel mode: Numba not available, using Python AI at depth 10 (slow ~20-40s per move)")
     elif os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
         # Test/CI: Very low depth for speed
         ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
