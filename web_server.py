@@ -666,6 +666,10 @@ async def root():
         .controls {
             text-align: center;
             margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
 
         button {
@@ -695,6 +699,87 @@ async def root():
             cursor: not-allowed;
         }
 
+        button.restart-btn {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        button.restart-btn:hover {
+            background: #ff5252;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+                margin: 10px 0;
+            }
+
+            .game-container {
+                padding: 15px;
+            }
+
+            .status {
+                font-size: 1.2em;
+                margin-bottom: 15px;
+            }
+
+            .board {
+                padding: 5px;
+            }
+
+            .cell {
+                width: 45px;
+                height: 45px;
+                margin: 3px;
+            }
+
+            .piece {
+                width: 39px;
+                height: 39px;
+            }
+
+            button {
+                padding: 12px 20px;
+                font-size: 0.95em;
+            }
+
+            .winner-banner {
+                padding: 15px 20px;
+                font-size: 1.2em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .cell {
+                width: 38px;
+                height: 38px;
+                margin: 2px;
+            }
+
+            .piece {
+                width: 34px;
+                height: 34px;
+            }
+
+            button {
+                padding: 10px 15px;
+                font-size: 0.9em;
+            }
+
+            .controls {
+                gap: 5px;
+            }
+        }
+
         .progress {
             text-align: center;
             margin-top: 10px;
@@ -720,12 +805,13 @@ async def root():
     <h1>🎮 Four in a Row</h1>
 
     <div class="game-container">
-        <div class="status" id="status">Click "New Game" to start</div>
+        <div class="status" id="status">Choose game mode to start</div>
         <div class="board" id="board"></div>
         <div class="progress" id="progress"></div>
         <div class="controls">
             <button id="btnPlayerStart">New Game (You Start)</button>
-            <button id="btnAIStart" style="margin-left: 10px;">New Game (AI Starts)</button>
+            <button id="btnAIStart">New Game (AI Starts)</button>
+            <button id="btnRestart" class="restart-btn" style="display: none;">🔄 Restart Game</button>
         </div>
         <div id="winner-banner"></div>
     </div>
@@ -896,6 +982,9 @@ async def root():
             document.getElementById('winner-banner').innerHTML = '';
             previousBoard = null; // Reset board tracking
 
+            // Show restart button
+            document.getElementById('btnRestart').style.display = 'inline-block';
+
             try {
                 console.log('Fetching /api/game/new...');
                 const response = await fetch('/api/game/new', {
@@ -926,6 +1015,19 @@ async def root():
                 updateProgress('Error: ' + error.message);
                 updateStatus('Error creating game');
             }
+        }
+
+        function restartGame() {
+            // Hide restart button temporarily
+            document.getElementById('btnRestart').style.display = 'none';
+            // Reset to mode selection
+            gameId = null;
+            gameOver = false;
+            previousBoard = null;
+            document.getElementById('board').innerHTML = '';
+            document.getElementById('winner-banner').innerHTML = '';
+            updateStatus('Click "New Game" to start');
+            updateProgress('');
         }
 
         async function makeMove(column) {
@@ -980,10 +1082,16 @@ async def root():
         // Set up event listeners - run immediately since script is at bottom
         const btnPlayerStart = document.getElementById('btnPlayerStart');
         const btnAIStart = document.getElementById('btnAIStart');
+        const btnRestart = document.getElementById('btnRestart');
 
-        if (btnPlayerStart && btnAIStart) {
+        if (btnPlayerStart) {
             btnPlayerStart.addEventListener('click', () => newGame(true));
+        }
+        if (btnAIStart) {
             btnAIStart.addEventListener('click', () => newGame(false));
+        }
+        if (btnRestart) {
+            btnRestart.addEventListener('click', () => restartGame());
         }
     </script>
 </body>
