@@ -1,14 +1,13 @@
 # Production dependencies for Vercel deployment
 # Minimal set to reduce bundle size
 
-# Web server (essential)
+# Web server (essential) - NO [standard] to save ~20MB
 fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+uvicorn>=0.32.0
 pydantic>=2.10.0
 
 # Core game (essential)
 bitarray>=3.8.1
 
-# Performance - Numba JIT (try to fit under 250MB)
-numba>=0.59.0
-numpy>=1.26.0
+# Performance - Numba removed (too large: 180MB for Numba+NumPy+LLVM)
+# Using Python AI at depth 9 instead (good balance of speed/quality)
