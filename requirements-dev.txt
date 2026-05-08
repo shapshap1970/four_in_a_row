@@ -1,0 +1,20 @@
+# Web server dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+websockets>=14.1
+pydantic>=2.10.0
+
+# Core game dependencies
+bitarray>=3.8.1
+rich>=15.0.0
+
+# Performance - Numba JIT for 5-20x speedup on Vercel
+numba>=0.59.0
+numpy>=1.26.0
+
+# Optional: For building Windows executable
+pyinstaller>=6.11.1
+
+# Security scanning (recommended for development)
+bandit>=1.7.10
+pip-audit>=2.7.0
