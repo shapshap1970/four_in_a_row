@@ -1,6 +1,7 @@
 """
 FastAPI web server for Four-in-a-Row game
 Lightweight server with WebSocket support for AI progress updates
+Redis caching for progressive AI learning
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -12,6 +13,8 @@ import uuid
 import json
 import asyncio
 from contextlib import asynccontextmanager
+import redis
+import os
 
 from board import Board
 from four_in_a_row_with_progress import FourInARowWithProgress
@@ -21,6 +24,9 @@ games: Dict[str, dict] = {}
 
 # Opening book - loaded on startup
 opening_book = None
+
+# Redis client for caching AI calculations
+redis_client = None
 
 
 class ProgressCallback:
@@ -40,8 +46,10 @@ class ProgressCallback:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load opening book on startup"""
-    global opening_book
+    """Load opening book and initialize Redis on startup"""
+    global opening_book, redis_client
+
+    # Load opening book
     try:
         import gzip
         with gzip.open('opening_book_7x6.json.gz', 'rt') as f:
@@ -54,10 +62,38 @@ async def lifespan(app: FastAPI):
         print(f"⚠ Error loading opening book: {e}")
         opening_book = {}
 
+    # Initialize Redis
+    try:
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
+        redis_port = int(os.getenv('REDIS_PORT', 6379))
+        redis_password = os.getenv('REDIS_PASSWORD', None)
+        redis_db = int(os.getenv('REDIS_DB', 0))
+
+        redis_client = redis.Redis(
+            host=redis_host,
+            port=redis_port,
+            password=redis_password,
+            db=redis_db,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2
+        )
+        # Test connection
+        redis_client.ping()
+        cached_positions = redis_client.dbsize()
+        print(f"✓ Connected to Redis at {redis_host}:{redis_port}")
+        print(f"✓ Redis cache contains {cached_positions} positions")
+    except Exception as e:
+        print(f"⚠ Redis not available: {e}")
+        print("  AI will work without caching (calculations won't be saved)")
+        redis_client = None
+
     yield
 
     # Cleanup
     games.clear()
+    if redis_client:
+        redis_client.close()
 
 
 app = FastAPI(title="Four-in-a-Row", lifespan=lifespan)
@@ -209,17 +245,34 @@ async def make_ai_move(game_id: str):
     if game['current_player'] != 'O':
         raise HTTPException(status_code=400, detail="Not AI's turn")
 
-    # Check opening book first
+    # Get board position
     board = game['board']
     board_hash = str(board.to_hash())
     best_column = None
+    eval_score = 0
 
+    # Priority 1: Check opening book
     if opening_book and board_hash in opening_book:
-        # Opening book stores [score, column]
         book_entry = opening_book[board_hash]
         best_column = book_entry[1] if isinstance(book_entry, list) else book_entry
-    else:
-        # Compute AI move
+        eval_score = book_entry[0] if isinstance(book_entry, list) else 0
+
+    # Priority 2: Check Redis cache
+    elif redis_client:
+        try:
+            search_depth = game['search_depth']
+            redis_key = f"4row:d{search_depth}:np{game['number_of_play']}:{board_hash}"
+            cached_result = redis_client.get(redis_key)
+
+            if cached_result:
+                cached_data = json.loads(cached_result)
+                eval_score = cached_data['score']
+                best_column = cached_data['move']
+        except Exception as e:
+            print(f"Redis read error: {e}")
+
+    # Priority 3: Compute from scratch
+    if best_column is None:
         ai_engine = game['ai_engine']
         search_depth = game['search_depth']
 
@@ -233,6 +286,20 @@ async def make_ai_move(game_id: str):
             game['number_of_play'],
             game['last_column']
         )
+
+        # Save to Redis for future use
+        if redis_client and best_column is not None:
+            try:
+                redis_key = f"4row:d{search_depth}:np{game['number_of_play']}:{board_hash}"
+                redis_value = json.dumps({
+                    'score': eval_score,
+                    'move': best_column,
+                    'depth': search_depth
+                })
+                # Set with 30-day expiration
+                redis_client.setex(redis_key, 30 * 24 * 3600, redis_value)
+            except Exception as e:
+                print(f"Redis write error: {e}")
 
     if best_column is None:
         raise HTTPException(status_code=500, detail="AI couldn't find a move")
@@ -300,21 +367,43 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
                 # Send thinking notification
                 await websocket.send_json({"type": "thinking", "message": "AI is thinking..."})
 
-                # Check opening book first
+                # Get board position
                 board_hash = str(game['board'].to_hash())
                 best_column = None
+                eval_score = 0
 
-                if board_hash in opening_book:
-                    # Opening book stores [score, column]
+                # Priority 1: Check opening book
+                if opening_book and board_hash in opening_book:
                     book_entry = opening_book[board_hash]
                     best_column = book_entry[1] if isinstance(book_entry, list) else book_entry
+                    eval_score = book_entry[0] if isinstance(book_entry, list) else 0
                     await websocket.send_json({
                         "type": "progress",
                         "message": "Using opening book"
                     })
                     await asyncio.sleep(0.5)  # Small delay for UX
-                else:
-                    # Compute AI move in background
+
+                # Priority 2: Check Redis cache
+                elif redis_client:
+                    try:
+                        search_depth = game['search_depth']
+                        redis_key = f"4row:d{search_depth}:np{game['number_of_play']}:{board_hash}"
+                        cached_result = redis_client.get(redis_key)
+
+                        if cached_result:
+                            cached_data = json.loads(cached_result)
+                            eval_score = cached_data['score']
+                            best_column = cached_data['move']
+                            await websocket.send_json({
+                                "type": "progress",
+                                "message": "Using cached position"
+                            })
+                            await asyncio.sleep(0.3)  # Small delay for UX
+                    except Exception as e:
+                        print(f"Redis read error: {e}")
+
+                # Priority 3: Compute from scratch
+                if best_column is None:
                     search_depth = game['search_depth']
                     await websocket.send_json({
                         "type": "progress",
@@ -335,6 +424,19 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
                         game['number_of_play'],
                         game['last_column']
                     )
+
+                    # Save to Redis for future use
+                    if redis_client and best_column is not None:
+                        try:
+                            redis_key = f"4row:d{search_depth}:np{game['number_of_play']}:{board_hash}"
+                            redis_value = json.dumps({
+                                'score': eval_score,
+                                'move': best_column,
+                                'depth': search_depth
+                            })
+                            redis_client.setex(redis_key, 30 * 24 * 3600, redis_value)
+                        except Exception as e:
+                            print(f"Redis write error: {e}")
 
                     # Send evaluation info
                     if abs(eval_score) >= 10000:
