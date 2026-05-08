@@ -8,6 +8,10 @@ pydantic>=2.10.0
 bitarray>=3.8.1
 rich>=15.0.0
 
+# Performance - Numba JIT for 5-20x speedup on Vercel
+numba>=0.59.0
+numpy>=1.26.0
+
 # Optional: For building Windows executable
 pyinstaller>=6.11.1
 
