@@ -629,7 +629,6 @@ async def root():
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            animation: drop 0.3s ease-out;
         }
 
         .piece.X {
@@ -642,6 +641,10 @@ async def root():
             box-shadow: inset 0 -3px 10px rgba(0,0,0,0.3);
         }
 
+        .piece.new-piece {
+            animation: drop 0.5s ease-out, blink 1.5s ease-in-out;
+        }
+
         @keyframes drop {
             from {
                 transform: translateY(-400px);
@@ -651,6 +654,13 @@ async def root():
                 transform: translateY(0);
                 opacity: 1;
             }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            25% { opacity: 0.4; }
+            50% { opacity: 1; }
+            75% { opacity: 0.4; }
         }
 
         .controls {
@@ -725,6 +735,7 @@ async def root():
         let currentPlayer = null;
         let gameOver = false;
         let validMoves = [];
+        let previousBoard = null;
 
         function updateStatus(message) {
             document.getElementById('status').textContent = message;
@@ -734,37 +745,98 @@ async def root():
             document.getElementById('progress').textContent = message;
         }
 
-        function renderBoard(board) {
+        function renderBoard(board, isNewGame = false) {
             const boardEl = document.getElementById('board');
-            boardEl.innerHTML = '';
 
-            for (let row = 0; row < 6; row++) {
-                const rowEl = document.createElement('div');
-                rowEl.className = 'row';
-
-                for (let col = 0; col < 7; col++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.dataset.col = col;
-
-                    const piece = board[row][col];
-                    if (piece !== ' ') {
-                        const pieceEl = document.createElement('div');
-                        pieceEl.className = `piece ${piece}`;
-                        cell.appendChild(pieceEl);
+            // Find new pieces by comparing with previous board
+            let newPieces = [];
+            if (!isNewGame && previousBoard) {
+                for (let row = 0; row < 6; row++) {
+                    for (let col = 0; col < 7; col++) {
+                        if (board[row][col] !== ' ' && previousBoard[row][col] === ' ') {
+                            newPieces.push({row, col});
+                        }
                     }
-
-                    if (!gameOver && currentPlayer === 'X' && validMoves.includes(col)) {
-                        cell.onclick = () => makeMove(col);
-                    } else {
-                        cell.classList.add('disabled');
-                    }
-
-                    rowEl.appendChild(cell);
                 }
-
-                boardEl.appendChild(rowEl);
             }
+
+            // If it's a new game, clear everything
+            if (isNewGame) {
+                boardEl.innerHTML = '';
+            }
+
+            // Render board
+            if (boardEl.children.length === 0) {
+                // Initial render - create all cells
+                for (let row = 0; row < 6; row++) {
+                    const rowEl = document.createElement('div');
+                    rowEl.className = 'row';
+                    rowEl.dataset.row = row;
+
+                    for (let col = 0; col < 7; col++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.col = col;
+                        cell.dataset.row = row;
+
+                        const piece = board[row][col];
+                        if (piece !== ' ') {
+                            const pieceEl = document.createElement('div');
+                            const isNew = newPieces.some(p => p.row === row && p.col === col);
+                            pieceEl.className = `piece ${piece}${isNew ? ' new-piece' : ''}`;
+                            cell.appendChild(pieceEl);
+                        }
+
+                        if (!gameOver && currentPlayer === 'X' && validMoves.includes(col)) {
+                            cell.onclick = () => makeMove(col);
+                        } else {
+                            cell.classList.add('disabled');
+                        }
+
+                        rowEl.appendChild(cell);
+                    }
+
+                    boardEl.appendChild(rowEl);
+                }
+            } else {
+                // Update existing cells - only update pieces that changed
+                for (let row = 0; row < 6; row++) {
+                    for (let col = 0; col < 7; col++) {
+                        const cell = boardEl.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                        if (!cell) continue;
+
+                        const piece = board[row][col];
+                        const existingPiece = cell.querySelector('.piece');
+
+                        // Update piece if changed
+                        if (piece !== ' ' && !existingPiece) {
+                            const pieceEl = document.createElement('div');
+                            const isNew = newPieces.some(p => p.row === row && p.col === col);
+                            pieceEl.className = `piece ${piece}${isNew ? ' new-piece' : ''}`;
+                            cell.appendChild(pieceEl);
+
+                            // Remove new-piece class after animation completes
+                            if (isNew) {
+                                setTimeout(() => {
+                                    pieceEl.classList.remove('new-piece');
+                                }, 1500);
+                            }
+                        }
+
+                        // Update cell interactivity
+                        cell.onclick = null;
+                        cell.classList.remove('disabled');
+                        if (!gameOver && currentPlayer === 'X' && validMoves.includes(col)) {
+                            cell.onclick = () => makeMove(col);
+                        } else {
+                            cell.classList.add('disabled');
+                        }
+                    }
+                }
+            }
+
+            // Store current board for next comparison
+            previousBoard = board.map(row => [...row]);
         }
 
         async function makeAIMove() {
@@ -822,6 +894,7 @@ async def root():
             console.log('newGame called with playerStarts:', playerStarts);
             updateProgress('Starting new game...');
             document.getElementById('winner-banner').innerHTML = '';
+            previousBoard = null; // Reset board tracking
 
             try {
                 console.log('Fetching /api/game/new...');
@@ -838,7 +911,7 @@ async def root():
                 gameOver = data.game_over;
                 validMoves = data.valid_moves;
 
-                renderBoard(data.board);
+                renderBoard(data.board, true); // true = new game
 
                 if (currentPlayer === 'X') {
                     updateStatus('Your turn! (Red pieces)');
