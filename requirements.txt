@@ -1,12 +1,15 @@
-# Core dependencies (for gameplay)
-# None required! Uses only Python standard library
+# Web server dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+websockets>=14.1
+pydantic>=2.10.0
+
+# Core game dependencies
+bitarray>=3.8.1
+rich>=15.0.0
 
 # Optional: For building Windows executable
 pyinstaller>=6.11.1
-
-# Legacy dependencies (not used by main game) - UPDATED FOR SECURITY
-rich>=15.0.0
-bitarray>=3.8.1
 
 # Security scanning (recommended for development)
 bandit>=1.7.10
