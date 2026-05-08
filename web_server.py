@@ -195,6 +195,82 @@ async def get_game_state(game_id: str):
     )
 
 
+@app.post("/api/game/{game_id}/ai-move", response_model=GameState)
+async def make_ai_move(game_id: str):
+    """Make AI move (REST endpoint, no WebSocket)"""
+    if game_id not in games:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    game = games[game_id]
+
+    if game['game_over']:
+        raise HTTPException(status_code=400, detail="Game is over")
+
+    if game['current_player'] != 'O':
+        raise HTTPException(status_code=400, detail="Not AI's turn")
+
+    # Check opening book first
+    board = game['board']
+    board_hash = str(board.to_hash())
+    best_column = None
+
+    if opening_book and board_hash in opening_book:
+        # Opening book stores [score, column]
+        book_entry = opening_book[board_hash]
+        best_column = book_entry[1] if isinstance(book_entry, list) else book_entry
+    else:
+        # Compute AI move
+        ai_engine = game['ai_engine']
+        search_depth = game['search_depth']
+
+        loop = asyncio.get_event_loop()
+        eval_score, best_column = await loop.run_in_executor(
+            None,
+            ai_engine.fixed_depth_search,
+            board,
+            search_depth,
+            'O',
+            game['number_of_play'],
+            game['last_column']
+        )
+
+    if best_column is None:
+        raise HTTPException(status_code=500, detail="AI couldn't find a move")
+
+    # Check if this is the first move BEFORE adding to history
+    is_first_move = len(game['move_history']) == 0
+
+    # Make AI move
+    board.play_move(best_column, 'O')
+    game['move_history'].append(('O', best_column))
+    game['last_column'] = best_column
+
+    # Check if AI won
+    if board.is_winner('O', 4):
+        game['game_over'] = True
+        game['winner'] = 'O'
+    elif board.is_end_of_game():
+        game['game_over'] = True
+        game['winner'] = None
+    else:
+        # Update player turn based on consecutive moves rule
+        ai_engine = game['ai_engine']
+        next_player = ai_engine.next_player('O', game['number_of_play'], first_play=is_first_move)
+        next_number = ai_engine.next_number_of_play(game['number_of_play'], first_play=is_first_move)
+        game['current_player'] = next_player
+        game['number_of_play'] = next_number
+
+    return GameState(
+        game_id=game_id,
+        board=board.board,
+        current_player=game['current_player'],
+        game_over=game['game_over'],
+        winner=game['winner'],
+        valid_moves=[col for col, _ in board.possible_moves()] if not game['game_over'] else [],
+        last_move=best_column
+    )
+
+
 @app.websocket("/ws/{game_id}")
 async def websocket_endpoint(websocket: WebSocket, game_id: str):
     """WebSocket for AI move computation with progress updates"""
@@ -646,7 +722,6 @@ async def root():
 
     <script>
         let gameId = null;
-        let ws = null;
         let currentPlayer = null;
         let gameOver = false;
         let validMoves = [];
@@ -692,6 +767,57 @@ async def root():
             }
         }
 
+        async function makeAIMove() {
+            if (gameOver || currentPlayer !== 'O') return;
+
+            updateStatus('AI is thinking...');
+            updateProgress('Computing move...');
+
+            try {
+                const response = await fetch(`/api/game/${gameId}/ai-move`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await response.json();
+                currentPlayer = data.current_player;
+                gameOver = data.game_over;
+                validMoves = data.valid_moves;
+
+                renderBoard(data.board);
+
+                if (gameOver) {
+                    if (data.winner === 'O') {
+                        updateStatus('😔 AI won!');
+                        document.getElementById('winner-banner').innerHTML =
+                            '<div class="winner-banner">AI wins! Better luck next time!</div>';
+                    } else if (data.winner === 'X') {
+                        updateStatus('🎉 You won!');
+                        document.getElementById('winner-banner').innerHTML =
+                            '<div class="winner-banner">🎉 Congratulations! You won! 🎉</div>';
+                    } else {
+                        updateStatus('🤝 Draw!');
+                        document.getElementById('winner-banner').innerHTML =
+                            '<div class="winner-banner">🤝 It is a draw!</div>';
+                    }
+                    updateProgress('');
+                } else {
+                    // Check whose turn it is - AI might have another move (2-move rule)
+                    if (currentPlayer === 'X') {
+                        updateStatus('Your turn! (Red pieces)');
+                        updateProgress('');
+                    } else {
+                        // AI still has a turn
+                        updateProgress('AI making 2nd move...');
+                        setTimeout(() => makeAIMove(), 500);
+                    }
+                }
+            } catch (error) {
+                updateProgress('Error: ' + error.message);
+                updateStatus('Error during AI move');
+            }
+        }
+
         async function newGame(playerStarts) {
             console.log('newGame called with playerStarts:', playerStarts);
             updateProgress('Starting new game...');
@@ -714,28 +840,13 @@ async def root():
 
                 renderBoard(data.board);
 
-                // Setup WebSocket
-                if (ws) ws.close();
-                ws = new WebSocket(`ws://${window.location.host}/ws/${gameId}`);
-
-                ws.onopen = () => {
-                    if (currentPlayer === 'O') {
-                        ws.send(JSON.stringify({action: 'compute_ai_move'}));
-                    }
-                };
-
-                ws.onmessage = handleWebSocketMessage;
-
-                ws.onerror = (error) => {
-                    updateProgress('Connection error');
-                    console.error('WebSocket error:', error);
-                };
-
                 if (currentPlayer === 'X') {
                     updateStatus('Your turn! (Red pieces)');
                     updateProgress('');
                 } else {
                     updateStatus('AI is thinking...');
+                    // Trigger AI move after short delay
+                    setTimeout(() => makeAIMove(), 500);
                 }
             } catch (error) {
                 console.error('Error in newGame:', error);
@@ -784,74 +895,12 @@ async def root():
                         updateStatus('Your turn! (Red pieces)');
                         updateProgress('');
                     } else {
-                        updateStatus('AI is thinking...');
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({action: 'compute_ai_move'}));
-                        } else {
-                            updateProgress('Error: Connection lost');
-                        }
+                        // AI's turn - trigger AI move
+                        setTimeout(() => makeAIMove(), 500);
                     }
                 }
             } catch (error) {
                 updateProgress('Error: ' + error.message);
-            }
-        }
-
-        function handleWebSocketMessage(event) {
-            const data = JSON.parse(event.data);
-
-            switch (data.type) {
-                case 'thinking':
-                    updateProgress(data.message);
-                    break;
-
-                case 'progress':
-                    updateProgress(data.message);
-                    break;
-
-                case 'move':
-                    currentPlayer = data.current_player;
-                    gameOver = data.game_over;
-                    validMoves = data.valid_moves;
-
-                    renderBoard(data.board);
-
-                    if (gameOver) {
-                        if (data.winner === 'O') {
-                            updateStatus('😔 AI won!');
-                            document.getElementById('winner-banner').innerHTML =
-                                '<div class="winner-banner">AI wins! Better luck next time!</div>';
-                        } else if (data.winner === 'X') {
-                            updateStatus('🎉 You won!');
-                            document.getElementById('winner-banner').innerHTML =
-                                '<div class="winner-banner">🎉 Congratulations! You won! 🎉</div>';
-                        } else {
-                            updateStatus('🤝 Draw!');
-                            document.getElementById('winner-banner').innerHTML =
-                                '<div class="winner-banner">🤝 It is a draw!</div>';
-                        }
-                        updateProgress('');
-                    } else {
-                        // Check whose turn it is - AI might have another move!
-                        if (currentPlayer === 'X') {
-                            updateStatus('Your turn! (Red pieces)');
-                            updateProgress('');
-                        } else {
-                            // AI still has a turn (2-move rule)
-                            updateStatus('AI is thinking...');
-                            updateProgress('AI making 2nd move...');
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({action: 'compute_ai_move'}));
-                            } else {
-                                updateProgress('Error: Connection lost');
-                            }
-                        }
-                    }
-                    break;
-
-                case 'error':
-                    updateProgress('Error: ' + data.message);
-                    break;
             }
         }
 
