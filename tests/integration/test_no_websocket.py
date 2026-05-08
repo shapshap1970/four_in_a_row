@@ -5,13 +5,18 @@ import pytest
 from fastapi.testclient import TestClient
 from web_server import app
 
-client = TestClient(app)
+
+@pytest.fixture
+def client():
+    """Create test client with proper cleanup"""
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 class TestNoWebSocketRequired:
     """Test that game works purely via REST API without WebSocket"""
 
-    def test_ai_move_endpoint_exists(self):
+    def test_ai_move_endpoint_exists(self, client):
         """Test that /api/game/{game_id}/ai-move endpoint exists"""
         # Create a game
         response = client.post("/api/game/new", json={"player_starts": False})
@@ -25,7 +30,7 @@ class TestNoWebSocketRequired:
         assert "board" in data
         assert "current_player" in data
 
-    def test_complete_game_without_websocket(self):
+    def test_complete_game_without_websocket(self, client):
         """Test complete game flow using only REST API"""
         # Create game - player starts
         response = client.post("/api/game/new", json={"player_starts": True})
@@ -54,7 +59,7 @@ class TestNoWebSocketRequired:
             data = response.json()
             assert data["current_player"] == "X"  # Should be player's turn now
 
-    def test_ai_move_when_not_ai_turn_fails(self):
+    def test_ai_move_when_not_ai_turn_fails(self, client):
         """Test that AI move fails when it's not AI's turn"""
         # Create game - player starts
         response = client.post("/api/game/new", json={"player_starts": True})
@@ -66,7 +71,7 @@ class TestNoWebSocketRequired:
         assert response.status_code == 400
         assert "Not AI's turn" in response.json()["detail"]
 
-    def test_ai_starts_game_without_websocket(self):
+    def test_ai_starts_game_without_websocket(self, client):
         """Test AI can start game using REST API only"""
         # Create game - AI starts
         response = client.post("/api/game/new", json={"player_starts": False})
@@ -85,7 +90,7 @@ class TestNoWebSocketRequired:
         pieces_count = sum(1 for row in board for cell in row if cell != " ")
         assert pieces_count == 1  # One AI move made
 
-    def test_no_websocket_in_html(self):
+    def test_no_websocket_in_html(self, client):
         """Test that HTML page is served (WebSocket check should be done manually)"""
         response = client.get("/")
         assert response.status_code == 200
