@@ -91,7 +91,7 @@ async def new_game(request: NewGameRequest):
     board = Board(7, 6)
     ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
                                        consec_moves=2, show_progress=False)
-    search_depth = 6  # AI search depth
+    search_depth = 8  # AI search depth
 
     # Human is always 'X', AI is always 'O'
     current_player = 'X' if request.player_starts else 'O'
