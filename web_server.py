@@ -19,6 +19,14 @@ from board import Board
 from four_in_a_row_with_progress import FourInARowWithProgress
 from rust_ai_wrapper import compute_move_rust, is_rust_ai_available
 
+# Import Numba AI for Vercel deployment
+try:
+    from four_in_a_row_numba import FourInARowNumba
+    NUMBA_AVAILABLE = True
+except ImportError:
+    NUMBA_AVAILABLE = False
+    FourInARowNumba = None
+
 # Game session storage
 games: Dict[str, dict] = {}
 
@@ -325,18 +333,30 @@ async def new_game(request: NewGameRequest):
     game_id = str(uuid.uuid4())
 
     board = Board(7, 6)
-    ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
-                                       consec_moves=2, show_progress=False)
 
-    # Adjust depth based on environment
+    # Adjust AI engine and depth based on environment
     import os
     if os.getenv('VERCEL_DEPLOYMENT') or os.getenv('DISABLE_RUST_AI'):
-        search_depth = 6  # Vercel: Lower depth for Python AI (faster, within timeout)
-        print("⚠️  Vercel mode: Using Python AI at depth 6")
+        # Vercel: Use Numba AI for speed
+        if NUMBA_AVAILABLE:
+            ai_engine = FourInARowNumba(rows=6, cols=7, consec_to_win=4, consec_moves=2)
+            search_depth = 10  # Numba can handle depth 10 on Vercel!
+            print("✓ Vercel mode: Using Numba AI at depth 10 (5-10x faster!)")
+        else:
+            ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
+                                             consec_moves=2, show_progress=False)
+            search_depth = 6
+            print("⚠️  Vercel mode: Numba not available, using Python AI at depth 6")
     elif os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
-        search_depth = 4  # Test/CI: Very low depth for fast tests (< 30s timeout)
+        # Test/CI: Very low depth for speed
+        ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
+                                         consec_moves=2, show_progress=False)
+        search_depth = 4
         print("⚠️  Test/CI mode: Using depth 4 for speed")
     else:
+        # Local: Standard AI
+        ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
+                                         consec_moves=2, show_progress=False)
         search_depth = 12  # Local: Rust AI can handle depth 12!
 
     # Human is always 'X', AI is always 'O'
