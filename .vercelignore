@@ -1,36 +1,33 @@
-# Test files
-tests/
-*.pyc
+# Rust build artifacts
+opening_book_generator/target/
+opening_book_generator/Cargo.lock
+*.so
+*.dylib
+*.dll
+
+# Python cache
 __pycache__/
-.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Tests
+test_*.py
+pytest_cache/
 .coverage
-htmlcov/
 coverage.xml
 
-# Build artifacts
-dist/
-build/
-*.spec
-
-# Documentation
-*.md
-!README.md
-
-# Git
-.git/
-.gitignore
-
-# IDE
+# Development
 .vscode/
 .idea/
-*.swp
+*.log
+.DS_Store
 
-# Scripts (not needed for web deployment)
-run_*.sh
-test.sh
-validate_tests.sh
-play_game_beautiful.py
-generate_opening_book_parallel.py
+# Large files
+opening_book_7x6.json.gz
 
-# PyInstaller
-*.spec
+# Local development
+venv/
+env/

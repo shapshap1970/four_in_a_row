@@ -1,3 +1,17 @@
 
 **/__pycache__
 **/.DS_Store
+
+# Rust build artifacts
+opening_book_generator/target/
+opening_book_generator/Cargo.lock
+
+# Test artifacts
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Runtime files
+*.pid
+*.log

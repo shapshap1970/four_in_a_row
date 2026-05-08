@@ -12,15 +12,25 @@ import uuid
 import json
 import asyncio
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from board import Board
 from four_in_a_row_with_progress import FourInARowWithProgress
+from rust_ai_wrapper import compute_move_rust, is_rust_ai_available
 
 # Game session storage
 games: Dict[str, dict] = {}
 
-# Opening book - loaded on startup
+# Opening book - loaded on startup (static initial positions)
 opening_book = None
+
+# Dynamic tree cache - extends during gameplay (per-game)
+# Format: {game_id: {board_hash: [score, best_move]}}
+dynamic_cache: Dict[str, Dict[str, list]] = {}
+
+# Separate thread pool for tree extension (doesn't block main requests)
+tree_extension_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tree_ext")
 
 
 class ProgressCallback:
@@ -36,6 +46,216 @@ class ProgressCallback:
                 await self.websocket.send_json({"type": "progress", "message": message})
             except:
                 pass  # WebSocket might be closed
+
+
+def extend_tree_branch_sync(game_id: str):
+    """
+    Synchronous version of tree extension for use in separate thread.
+    Extend the current game branch to maintain deep lookahead.
+    Computes the NEXT AI move position at search_depth.
+    """
+    if game_id not in games:
+        return
+
+    game = games[game_id]
+    board = game['board']
+    ai_engine = game['ai_engine']
+    target_depth = game['search_depth']  # Match AI search depth (10)
+
+    # Calculate how many moves have been played
+    moves_played = len(game['move_history'])
+
+    print(f"🔄 Extending tree for game {game_id[:8]}... (moves played: {moves_played})")
+
+    # Generate positions along ALL possible branches up to target_depth
+    from collections import deque
+    queue = deque()
+    queue.append((Board(board), game['current_player'], game['number_of_play'], game['last_column'], 0))
+
+    positions_to_compute = []
+    visited = set()
+
+    while queue:
+        pos_board, player, num_play, last_col, depth = queue.popleft()
+
+        if depth >= target_depth:
+            continue
+
+        board_hash = str(pos_board.to_hash())
+
+        # Skip if already cached
+        if board_hash in visited:
+            continue
+        if opening_book and board_hash in opening_book:
+            visited.add(board_hash)
+            continue
+        if game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
+            visited.add(board_hash)
+            continue
+
+        visited.add(board_hash)
+
+        # Only compute positions where it's AI's turn
+        if player == 'O':
+            positions_to_compute.append((Board(pos_board), player, num_play, last_col))
+
+        # Generate next positions
+        for col, _ in pos_board.possible_moves():
+            next_board = Board(pos_board)
+            next_board.play_move(col, player)
+
+            if next_board.is_winner(player, 4) or next_board.is_end_of_game():
+                continue
+
+            is_first = depth == 0 and moves_played == 0
+            next_player = ai_engine.next_player(player, num_play, first_play=is_first)
+            next_num = ai_engine.next_number_of_play(num_play, first_play=is_first)
+
+            queue.append((next_board, next_player, next_num, col, depth + 1))
+
+    # Compute evaluations for new AI positions
+    if positions_to_compute:
+        # Limit computation to avoid overwhelming - only compute immediate next moves
+        max_positions = 5  # Compute up to 5 positions per extension (much faster!)
+        positions_to_compute = positions_to_compute[:max_positions]
+
+        print(f"  Computing {len(positions_to_compute)} AI positions...")
+
+        for pos_board, player, num_play, last_col in positions_to_compute:
+            try:
+                # Use Rust AI if available (10-50x faster!)
+                if is_rust_ai_available():
+                    eval_score, best_move = compute_move_rust(
+                        pos_board,
+                        target_depth,
+                        player,
+                        num_play
+                    )
+                else:
+                    # Fallback to Python AI
+                    eval_score, best_move = ai_engine.minimax_alpha_beta(
+                        pos_board,
+                        target_depth,
+                        -float('inf'),
+                        float('inf'),
+                        player,
+                        num_play,
+                        last_col,
+                        False
+                    )
+
+                # Store in dynamic cache
+                board_hash = str(pos_board.to_hash())
+                dynamic_cache[game_id][board_hash] = [eval_score, best_move]
+            except Exception as e:
+                print(f"  ⚠️  Error computing position: {e}")
+
+        print(f"  ✓ Extended tree: +{len(positions_to_compute)} positions cached")
+    else:
+        print(f"  ✓ Tree already complete")
+
+
+async def extend_tree_branch(game_id: str):
+    """
+    Extend the current game branch to maintain deep lookahead.
+    Computes the NEXT AI move position at search_depth.
+    Runs in background after each move.
+    """
+    if game_id not in games:
+        return
+
+    game = games[game_id]
+    board = game['board']
+    ai_engine = game['ai_engine']
+    target_depth = game['search_depth']  # Match AI search depth (10)
+
+    # Calculate how many moves have been played
+    moves_played = len(game['move_history'])
+
+    print(f"🔄 Extending tree for game {game_id[:8]}... (moves played: {moves_played})")
+
+    loop = asyncio.get_event_loop()
+
+    # Generate positions along ALL possible branches up to target_depth
+    # This way when player moves, we'll have ALL responses pre-computed
+    from collections import deque
+    queue = deque()
+    queue.append((Board(board), game['current_player'], game['number_of_play'], game['last_column'], 0))
+
+    positions_to_compute = []
+    visited = set()
+
+    while queue:
+        pos_board, player, num_play, last_col, depth = queue.popleft()
+
+        if depth >= target_depth:
+            continue
+
+        board_hash = str(pos_board.to_hash())
+
+        # Skip if already cached
+        if board_hash in visited:
+            continue
+        if opening_book and board_hash in opening_book:
+            visited.add(board_hash)
+            continue
+        if game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
+            visited.add(board_hash)
+            continue
+
+        visited.add(board_hash)
+
+        # Only compute positions where it's AI's turn
+        if player == 'O':
+            positions_to_compute.append((Board(pos_board), player, num_play, last_col))
+
+        # Generate next positions
+        for col, _ in pos_board.possible_moves():
+            next_board = Board(pos_board)
+            next_board.play_move(col, player)
+
+            if next_board.is_winner(player, 4) or next_board.is_end_of_game():
+                continue
+
+            is_first = depth == 0 and moves_played == 0
+            next_player = ai_engine.next_player(player, num_play, first_play=is_first)
+            next_num = ai_engine.next_number_of_play(num_play, first_play=is_first)
+
+            queue.append((next_board, next_player, next_num, col, depth + 1))
+
+    # Compute evaluations for new AI positions (in parallel would be better, but sequential for now)
+    if positions_to_compute:
+        # Limit computation to avoid overwhelming - only compute immediate next moves
+        max_positions = 5  # Compute up to 5 positions per extension (much faster!)
+        positions_to_compute = positions_to_compute[:max_positions]
+
+        print(f"  Computing {len(positions_to_compute)} AI positions...")
+
+        for pos_board, player, num_play, last_col in positions_to_compute:
+            try:
+                # Run minimax evaluation
+                eval_score, best_move = await loop.run_in_executor(
+                    None,
+                    ai_engine.minimax_alpha_beta,
+                    pos_board,
+                    target_depth,
+                    -float('inf'),
+                    float('inf'),
+                    player,
+                    num_play,
+                    last_col,
+                    False
+                )
+
+                # Store in dynamic cache
+                board_hash = str(pos_board.to_hash())
+                dynamic_cache[game_id][board_hash] = [eval_score, best_move]
+            except Exception as e:
+                print(f"  ⚠️  Error computing position: {e}")
+
+        print(f"  ✓ Extended tree: +{len(positions_to_compute)} positions cached")
+    else:
+        print(f"  ✓ Tree already complete")
 
 
 @asynccontextmanager
@@ -54,10 +274,17 @@ async def lifespan(app: FastAPI):
         print(f"⚠ Error loading opening book: {e}")
         opening_book = {}
 
+    # Check if Rust AI is available
+    if is_rust_ai_available():
+        print("✓ Rust AI engine available (10-50x faster)")
+    else:
+        print("⚠ Rust AI not found, using Python (slower)")
+
     yield
 
     # Cleanup
     games.clear()
+    dynamic_cache.clear()
 
 
 app = FastAPI(title="Four-in-a-Row", lifespan=lifespan)
@@ -91,7 +318,14 @@ async def new_game(request: NewGameRequest):
     board = Board(7, 6)
     ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
                                        consec_moves=2, show_progress=False)
-    search_depth = 8  # AI search depth
+
+    # Adjust depth based on environment
+    import os
+    if os.getenv('VERCEL_DEPLOYMENT') or os.getenv('DISABLE_RUST_AI'):
+        search_depth = 6  # Vercel: Lower depth for Python AI (faster, within timeout)
+        print("⚠️  Vercel mode: Using Python AI at depth 6")
+    else:
+        search_depth = 12  # Local: Rust AI can handle depth 12!
 
     # Human is always 'X', AI is always 'O'
     current_player = 'X' if request.player_starts else 'O'
@@ -105,8 +339,12 @@ async def new_game(request: NewGameRequest):
         'last_column': None,
         'game_over': False,
         'winner': None,
-        'move_history': []
+        'move_history': [],
+        'tree_depth': 8  # Always maintain 8 moves lookahead
     }
+
+    # Initialize dynamic cache for this game
+    dynamic_cache[game_id] = {}
 
     return GameState(
         game_id=game_id,
@@ -164,7 +402,8 @@ async def make_move(game_id: str, move: MoveRequest):
         game['current_player'] = next_player
         game['number_of_play'] = next_number
 
-    return GameState(
+    # Return immediately - don't block on tree extension
+    result = GameState(
         game_id=game_id,
         board=board.board,
         current_player=game['current_player'],
@@ -173,6 +412,14 @@ async def make_move(game_id: str, move: MoveRequest):
         valid_moves=[col for col, _ in board.possible_moves()] if not game['game_over'] else [],
         last_move=move.column
     )
+
+    # Trigger tree extension ONLY when player completes their turn (AI's turn next)
+    # This happens in separate thread so it doesn't block
+    if not game['game_over'] and result.current_player == 'O':
+        print(f"🔄 Triggering tree extension (player completed turn)")
+        tree_extension_executor.submit(extend_tree_branch_sync, game_id)
+
+    return result
 
 
 @app.get("/api/game/{game_id}/state", response_model=GameState)
@@ -209,30 +456,50 @@ async def make_ai_move(game_id: str):
     if game['current_player'] != 'O':
         raise HTTPException(status_code=400, detail="Not AI's turn")
 
-    # Check opening book first
+    # Check caches (dynamic cache → compute)
+    # NOTE: Opening book disabled - using depth 12 for stronger play
     board = game['board']
     board_hash = str(board.to_hash())
     best_column = None
+    cache_hit = False
 
-    if opening_book and board_hash in opening_book:
-        # Opening book stores [score, column]
-        book_entry = opening_book[board_hash]
-        best_column = book_entry[1] if isinstance(book_entry, list) else book_entry
+    # Priority 1: Check dynamic cache
+    if game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
+        cache_entry = dynamic_cache[game_id][board_hash]
+        best_column = cache_entry[1] if isinstance(cache_entry, list) else cache_entry
+        cache_hit = True
+        print(f"  ✓ Dynamic cache hit")
+
+    # Priority 2: Compute with Rust AI at depth 12
     else:
-        # Compute AI move
-        ai_engine = game['ai_engine']
         search_depth = game['search_depth']
 
-        loop = asyncio.get_event_loop()
-        eval_score, best_column = await loop.run_in_executor(
-            None,
-            ai_engine.fixed_depth_search,
-            board,
-            search_depth,
-            'O',
-            game['number_of_play'],
-            game['last_column']
-        )
+        # Use Rust AI if available (10-50x faster!)
+        if is_rust_ai_available():
+            loop = asyncio.get_event_loop()
+            eval_score, best_column = await loop.run_in_executor(
+                None,
+                compute_move_rust,
+                board,
+                search_depth,
+                'O',
+                game['number_of_play']
+            )
+            print(f"  🚀 Rust AI (depth {search_depth}) - FAST!")
+        else:
+            # Fallback to Python AI
+            ai_engine = game['ai_engine']
+            loop = asyncio.get_event_loop()
+            eval_score, best_column = await loop.run_in_executor(
+                None,
+                ai_engine.fixed_depth_search,
+                board,
+                search_depth,
+                'O',
+                game['number_of_play'],
+                game['last_column']
+            )
+            print(f"  ⏱️  Python AI (depth {search_depth}) - slow")
 
     if best_column is None:
         raise HTTPException(status_code=500, detail="AI couldn't find a move")
@@ -259,6 +526,9 @@ async def make_ai_move(game_id: str):
         next_number = ai_engine.next_number_of_play(game['number_of_play'], first_play=is_first_move)
         game['current_player'] = next_player
         game['number_of_play'] = next_number
+
+    # Don't extend tree here - the player move endpoint will trigger it
+    # after player completes their turn
 
     return GameState(
         game_id=game_id,
@@ -938,6 +1208,13 @@ async def root():
                 });
 
                 const data = await response.json();
+
+                // Check for error response
+                if (!response.ok || data.detail) {
+                    updateProgress('Error: ' + (data.detail || 'AI move failed'));
+                    return;
+                }
+
                 currentPlayer = data.current_player;
                 gameOver = data.game_over;
                 validMoves = data.valid_moves;
@@ -1043,6 +1320,13 @@ async def root():
                 });
 
                 const data = await response.json();
+
+                // Check for error response
+                if (!response.ok || data.detail) {
+                    updateProgress('Error: ' + (data.detail || 'Move failed'));
+                    return;
+                }
+
                 currentPlayer = data.current_player;
                 gameOver = data.game_over;
                 validMoves = data.valid_moves;
