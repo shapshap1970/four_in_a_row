@@ -264,24 +264,20 @@ async def lifespan(app: FastAPI):
     import os
     global opening_book
 
-    # Skip loading opening book in test/CI environment (faster startup)
-    if os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
-        print("⚠ Test/CI mode: Skipping opening book load for faster startup")
-        opening_book = {}
-    else:
-        try:
-            import gzip
-            with gzip.open('opening_book_7x6.json.gz', 'rt') as f:
-                opening_book = json.load(f)
-            print(f"✓ Loaded opening book with {len(opening_book)} positions")
-        except FileNotFoundError:
-            print("⚠ Opening book not found, AI will calculate from scratch")
-            opening_book = {}
-        except Exception as e:
-            print(f"⚠ Error loading opening book: {e}")
-            opening_book = {}
+    # Always skip opening book in test mode - we're not using it anyway
+    # (opening book disabled in favor of depth-12 Rust AI)
+    opening_book = {}
 
-    # Check if Rust AI is available
+    # Check if we're in test/CI mode
+    is_test_mode = os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS')
+
+    if is_test_mode:
+        print("⚠ Test/CI mode: Fast startup, skipping heavy initialization")
+    else:
+        # In production, we can optionally load opening book (currently disabled)
+        print("⚠ Opening book disabled - using depth-12 Rust AI for all moves")
+
+    # Check if Rust AI is available (will be False in CI)
     if is_rust_ai_available():
         print("✓ Rust AI engine available (10-50x faster)")
     else:
