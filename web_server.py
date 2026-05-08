@@ -261,18 +261,25 @@ async def extend_tree_branch(game_id: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load opening book on startup"""
+    import os
     global opening_book
-    try:
-        import gzip
-        with gzip.open('opening_book_7x6.json.gz', 'rt') as f:
-            opening_book = json.load(f)
-        print(f"✓ Loaded opening book with {len(opening_book)} positions")
-    except FileNotFoundError:
-        print("⚠ Opening book not found, AI will calculate from scratch")
+
+    # Skip loading opening book in test/CI environment (faster startup)
+    if os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS'):
+        print("⚠ Test/CI mode: Skipping opening book load for faster startup")
         opening_book = {}
-    except Exception as e:
-        print(f"⚠ Error loading opening book: {e}")
-        opening_book = {}
+    else:
+        try:
+            import gzip
+            with gzip.open('opening_book_7x6.json.gz', 'rt') as f:
+                opening_book = json.load(f)
+            print(f"✓ Loaded opening book with {len(opening_book)} positions")
+        except FileNotFoundError:
+            print("⚠ Opening book not found, AI will calculate from scratch")
+            opening_book = {}
+        except Exception as e:
+            print(f"⚠ Error loading opening book: {e}")
+            opening_book = {}
 
     # Check if Rust AI is available
     if is_rust_ai_available():
