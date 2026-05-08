@@ -289,6 +289,9 @@ async def lifespan(app: FastAPI):
     games.clear()
     dynamic_cache.clear()
 
+    # Shutdown thread pool executor
+    tree_extension_executor.shutdown(wait=False)
+
 
 app = FastAPI(title="Four-in-a-Row", lifespan=lifespan)
 
