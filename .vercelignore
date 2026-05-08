@@ -1,0 +1,36 @@
+# Test files
+tests/
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Build artifacts
+dist/
+build/
+*.spec
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Scripts (not needed for web deployment)
+run_*.sh
+test.sh
+validate_tests.sh
+play_game_beautiful.py
+generate_opening_book_parallel.py
+
+# PyInstaller
+*.spec

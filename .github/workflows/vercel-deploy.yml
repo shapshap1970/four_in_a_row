@@ -1,0 +1,54 @@
+name: Vercel Deployment Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-before-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r tests/requirements-test.txt
+
+    - name: Run tests
+      run: |
+        python3.11 -m pytest tests/unit/ tests/integration/ -v --tb=short
+
+    - name: Check imports
+      run: |
+        python3.11 -c "from web_server import app; print('✅ Web server imports successfully')"
+
+    - name: Validate API structure
+      run: |
+        python3.11 -c "
+        from web_server import app
+        routes = [r.path for r in app.routes]
+        assert '/api/game/new' in str(routes), 'API routes missing'
+        print('✅ API routes validated')
+        "
+
+  deployment-ready:
+    runs-on: ubuntu-latest
+    needs: test-before-deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Deployment Ready
+      run: |
+        echo "✅ All checks passed - Ready for Vercel deployment"
+        echo "🚀 Vercel will automatically deploy this commit"
