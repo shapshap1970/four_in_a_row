@@ -28,7 +28,20 @@ jobs:
       - name: List built wheels
         run: ls -lh dist/
 
-      - name: Upload wheels
+      - name: Copy wheel to wheels directory
+        run: |
+          mkdir -p wheels
+          cp dist/*.whl wheels/
+
+      - name: Commit wheel to repo
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add wheels/*.whl
+          git diff --staged --quiet || git commit -m "Add Linux wheel from CI [skip ci]"
+          git push
+
+      - name: Upload wheels as artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-x86_64
