@@ -162,20 +162,21 @@ fn evaluate(board: &Board) -> i32 {
 
     let mut score = 0;
 
+    // Increased weights for more defensive/aggressive play
     let x_three = count_threats(board, 1, 3);
     let o_three = count_threats(board, 2, 3);
-    score += x_three * 100;
-    score -= o_three * 100;
+    score += x_three * 500;  // Was 100 - 3-in-row is CRITICAL
+    score -= o_three * 500;
 
     let x_two = count_threats(board, 1, 2);
     let o_two = count_threats(board, 2, 2);
-    score += x_two * 10;
-    score -= o_two * 10;
+    score += x_two * 50;  // Was 10 - setup threats matter more
+    score -= o_two * 50;
 
     let x_one = count_threats(board, 1, 1);
     let o_one = count_threats(board, 2, 1);
-    score += x_one;
-    score -= o_one;
+    score += x_one * 5;  // Was 1 - basic positioning
+    score -= o_one * 5;
 
     let center_col = COLS / 2;
     for row in 0..ROWS {

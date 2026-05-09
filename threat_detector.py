@@ -53,7 +53,51 @@ def detect_two_move_win(board, player, consec_to_win=4):
     return winning_sequences
 
 
-def detect_must_block_moves(board, current_player, consec_to_win=4, check_two_moves=True):
+def detect_three_move_win(board, player, consec_to_win=4):
+    """
+    Detect if player can win within their next 3 consecutive moves.
+    This catches deeper tactical sequences that 2-move detection misses.
+
+    Returns list of (col1, col2, col3) tuples that lead to a win.
+    Note: This is computationally expensive - only use when needed.
+    """
+    from board import Board
+
+    winning_sequences = []
+
+    for col1, _ in board.possible_moves():
+        # Simulate first move
+        test_board1 = Board(board)
+        test_board1.play_move(col1, player)
+
+        # Check if won after first move
+        if test_board1.is_winner(player, consec_to_win):
+            winning_sequences.append((col1, None, None))
+            continue
+
+        # Try all second moves
+        for col2, _ in test_board1.possible_moves():
+            # Simulate second move
+            test_board2 = Board(test_board1)
+            test_board2.play_move(col2, player)
+
+            if test_board2.is_winner(player, consec_to_win):
+                winning_sequences.append((col1, col2, None))
+                continue
+
+            # Try all third moves
+            for col3, _ in test_board2.possible_moves():
+                # Simulate third move
+                test_board3 = Board(test_board2)
+                test_board3.play_move(col3, player)
+
+                if test_board3.is_winner(player, consec_to_win):
+                    winning_sequences.append((col1, col2, col3))
+
+    return winning_sequences
+
+
+def detect_must_block_moves(board, current_player, consec_to_win=4, check_two_moves=True, check_three_moves=False):
     """
     Detect moves that MUST be made to block opponent's immediate win.
 
@@ -64,6 +108,9 @@ def detect_must_block_moves(board, current_player, consec_to_win=4, check_two_mo
 
     NOTE: With check_two_moves=True, also checks if opponent can win within 2 consecutive
     moves (important for 2-move rule). This adds ~50ms but catches critical threats.
+
+    NOTE: With check_three_moves=True, also checks 3-move sequences. This adds ~200-500ms
+    but catches deeper tactical threats that 2-move detection misses.
     """
     opponent = 'X' if current_player == 'O' else 'O'
 
@@ -90,6 +137,25 @@ def detect_must_block_moves(board, current_player, consec_to_win=4, check_two_mo
             # Return moves sorted by how many threats they block (most important first)
             blocking_moves = [move for move, count in move_counter.most_common()]
             return ('block_2move', blocking_moves)
+
+    # Priority 2.5: Check if opponent can win within 3 moves (deeper tactical threats)
+    if check_three_moves:
+        opponent_three_move_wins = detect_three_move_win(board, opponent, consec_to_win)
+        if opponent_three_move_wins:
+            from collections import Counter
+            move_counter = Counter()
+
+            for seq in opponent_three_move_wins:
+                # Count all three moves (if they exist)
+                move_counter[seq[0]] += 1
+                if seq[1] is not None:
+                    move_counter[seq[1]] += 1
+                if seq[2] is not None:
+                    move_counter[seq[2]] += 1
+
+            # Return moves sorted by how many threats they block
+            blocking_moves = [move for move, count in move_counter.most_common()]
+            return ('block_3move', blocking_moves)
 
     # Priority 3: Check if WE can win immediately
     our_winning_moves = detect_immediate_win(board, current_player, consec_to_win)

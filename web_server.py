@@ -735,8 +735,13 @@ async def make_ai_move(game_id: str):
     total_pieces = sum(1 for row in board.board for cell in row if cell != ' ')
     if total_pieces >= 6:
         try:
-            # Enable 2-move detection to catch tactical sequences
-            forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=True)
+            # Enable 2-move and 3-move detection to catch tactical sequences
+            # 3-move adds ~200-500ms but catches deeper threats
+            forced_type, forced_moves = detect_must_block_moves(
+                board, 'O', consec_to_win=4,
+                check_two_moves=True,
+                check_three_moves=True
+            )
             if forced_type == 'win' and forced_moves:
                 # We can win immediately!
                 best_column = forced_moves[0]  # Just take first winning move
@@ -749,6 +754,10 @@ async def make_ai_move(game_id: str):
                 # Opponent can win in 2 moves - block their setup!
                 best_column = forced_moves[0]  # Take first blocking move
                 print(f"  🛡️  BLOCKING opponent 2-move threat! Playing column {best_column}")
+            elif forced_type == 'block_3move' and forced_moves:
+                # Opponent can win in 3 moves - block their setup!
+                best_column = forced_moves[0]  # Take first blocking move
+                print(f"  🛡️  BLOCKING opponent 3-move threat! Playing column {best_column}")
         except Exception as e:
             print(f"  ⚠️  Threat detection error: {e}, falling back to normal search")
 
