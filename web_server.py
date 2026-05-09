@@ -91,6 +91,10 @@ def load_game(game_id: str) -> dict:
     try:
         print(f"📥 Loading game {game_id} from blob...")
 
+        # Get token for private blob access
+        token = os.getenv('BLOB_READ_WRITE_TOKEN')
+        options = {"token": token} if token else {}
+
         # Check if we have the URL cached
         if game_id in game_urls:
             blob_url = game_urls[game_id]
@@ -98,7 +102,10 @@ def load_game(game_id: str) -> dict:
         else:
             # Search for the blob
             print(f"🔍 Searching for game {game_id} in blob...")
-            response = blob_list({"prefix": f"games/{game_id}"})
+            list_options = {"prefix": f"games/{game_id}"}
+            if token:
+                list_options["token"] = token
+            response = blob_list(list_options)
             if response and 'blobs' in response and len(response['blobs']) > 0:
                 blob_url = response['blobs'][0]['url']
                 game_urls[game_id] = blob_url
@@ -108,7 +115,7 @@ def load_game(game_id: str) -> dict:
                 return None
 
         # Download and deserialize
-        data = download_file(blob_url)
+        data = download_file(blob_url, options=options)
         game_data = deserialize_game(data)
         print(f"✓ Loaded game {game_id} from blob")
         return game_data
@@ -126,8 +133,12 @@ def save_game(game_id: str, game_data: dict):
 
         print(f"💾 Saving game {game_id} to blob (size: {len(serialized_data)} bytes)...")
 
-        # Upload and store the URL
+        # Upload and store the URL with token for private blob access
+        token = os.getenv('BLOB_READ_WRITE_TOKEN')
         options = {"allowOverwrite": "true"}  # Allow updating existing game
+        if token:
+            options["token"] = token
+
         response = put(blob_path, serialized_data, options=options)
 
         if response and 'url' in response:
@@ -144,7 +155,9 @@ def delete_game(game_id: str):
     """Delete game from Vercel Blob"""
     try:
         if game_id in game_urls:
-            blob_delete(game_urls[game_id])
+            token = os.getenv('BLOB_READ_WRITE_TOKEN')
+            options = {"token": token} if token else {}
+            blob_delete(game_urls[game_id], options=options)
             del game_urls[game_id]
     except Exception as e:
         print(f"Failed to delete game {game_id}: {e}")
