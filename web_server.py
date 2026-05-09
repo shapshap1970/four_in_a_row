@@ -135,10 +135,13 @@ def save_game(game_id: str, game_data: dict):
 
         # Upload and store the URL with token for private blob access
         token = os.getenv('BLOB_READ_WRITE_TOKEN')
+        print(f"🔑 Token present: {bool(token)}, starts with: {token[:15] if token else 'N/A'}...")
+
         options = {"allowOverwrite": "true"}  # Allow updating existing game
         if token:
             options["token"] = token
 
+        print(f"📤 Calling put() with options keys: {list(options.keys())}")
         response = put(blob_path, serialized_data, options=options)
 
         if response and 'url' in response:
