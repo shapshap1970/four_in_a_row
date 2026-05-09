@@ -452,6 +452,27 @@ async def lifespan(app: FastAPI):
     else:
         print("⚠ No Rust AI available - will use Python fallback (slower)")
 
+    # Clean up old games on startup (only in production, not test mode)
+    if BLOB_AVAILABLE and not is_test_mode:
+        try:
+            from datetime import datetime, timedelta
+            response = blob_list({"prefix": "games/"})
+            if response and 'blobs' in response:
+                cutoff_time = datetime.now() - timedelta(hours=24)
+                deleted_count = 0
+                for blob in response['blobs']:
+                    try:
+                        uploaded_at = datetime.fromisoformat(blob['uploadedAt'].replace('Z', '+00:00'))
+                        if uploaded_at < cutoff_time:
+                            blob_delete(blob['url'])
+                            deleted_count += 1
+                    except Exception as e:
+                        print(f"Failed to delete old game: {e}")
+                if deleted_count > 0:
+                    print(f"🗑️ Cleaned up {deleted_count} old games (>24h)")
+        except Exception as e:
+            print(f"Startup cleanup failed: {e}")
+
     yield
 
     # Cleanup
@@ -796,6 +817,63 @@ async def make_ai_move(game_id: str):
         valid_moves=[col for col, _ in board.possible_moves()] if not game['game_over'] else [],
         last_move=best_column
     )
+
+
+@app.delete("/api/game/{game_id}")
+async def delete_game_endpoint(game_id: str):
+    """Delete a game and clean up blob storage"""
+    try:
+        # Remove from memory
+        if game_id in games:
+            del games[game_id]
+
+        # Remove from blob storage
+        if BLOB_AVAILABLE:
+            delete_game(game_id)
+
+        # Remove from dynamic cache
+        if game_id in dynamic_cache:
+            del dynamic_cache[game_id]
+
+        return {"status": "deleted", "game_id": game_id}
+    except Exception as e:
+        print(f"Error deleting game {game_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/cleanup/old-games")
+async def cleanup_old_games(max_age_hours: int = 24):
+    """Delete games older than max_age_hours from blob storage"""
+    if not BLOB_AVAILABLE:
+        return {"status": "skipped", "reason": "blob storage not available"}
+
+    try:
+        from datetime import datetime, timedelta
+
+        # List all game blobs
+        response = blob_list({"prefix": "games/"})
+        if not response or 'blobs' not in response:
+            return {"status": "success", "deleted": 0}
+
+        cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+        deleted_count = 0
+
+        for blob in response['blobs']:
+            # Parse uploadedAt timestamp
+            uploaded_at = datetime.fromisoformat(blob['uploadedAt'].replace('Z', '+00:00'))
+
+            if uploaded_at < cutoff_time:
+                try:
+                    blob_delete(blob['url'])
+                    deleted_count += 1
+                    print(f"🗑️ Deleted old game: {blob['pathname']}")
+                except Exception as e:
+                    print(f"Failed to delete {blob['pathname']}: {e}")
+
+        return {"status": "success", "deleted": deleted_count, "max_age_hours": max_age_hours}
+    except Exception as e:
+        print(f"Error during cleanup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.websocket("/ws/{game_id}")
@@ -1551,9 +1629,21 @@ async def root():
             }
         }
 
-        function restartGame() {
+        async function restartGame() {
             // Hide restart button temporarily
             document.getElementById('btnRestart').style.display = 'none';
+
+            // Delete old game from server
+            if (gameId) {
+                try {
+                    await fetch(`/api/game/${gameId}`, {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    console.error('Failed to delete game:', error);
+                }
+            }
+
             // Reset to mode selection
             gameId = null;
             gameOver = false;
