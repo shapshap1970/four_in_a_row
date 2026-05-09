@@ -458,7 +458,7 @@ async def lifespan(app: FastAPI):
 
     # Check which AI engines are available
     if RUST_EXTENSION_AVAILABLE:
-        print("✓ Rust Python extension available - depth 12 FAST mode enabled!")
+        print("✓ Rust Python extension available - depth 13 FAST mode enabled!")
     elif is_rust_ai_available():
         print("✓ Rust AI binary available (local only)")
     else:
@@ -539,8 +539,8 @@ async def new_game(request: NewGameRequest):
         if RUST_EXTENSION_AVAILABLE:
             # Rust Python extension: fastest + smallest (~170KB)
             ai_engine = None  # Will use rust_get_best_move directly
-            search_depth = 12  # Rust at depth 12 (depth 14 might timeout on Vercel)
-            print("✓ Vercel mode: Using Rust Python extension at depth 12 (FAST!)")
+            search_depth = 13  # Rust at depth 13 (depth 14 might timeout on Vercel)
+            print("✓ Vercel mode: Using Rust Python extension at depth 13 (FAST!)")
         else:
             # Fallback: Python AI at depth 9
             ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
