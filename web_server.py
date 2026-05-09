@@ -455,15 +455,21 @@ async def lifespan(app: FastAPI):
             import gzip
             import json
             opening_book_path = os.path.join(os.path.dirname(__file__), 'opening_book_7x6.json.gz')
+            print(f"🔍 Looking for opening book at: {opening_book_path}")
+            print(f"🔍 Directory contents: {os.listdir(os.path.dirname(__file__))[:10]}")  # First 10 files
+
             if os.path.exists(opening_book_path):
+                print(f"✓ Opening book file found, loading...")
                 with gzip.open(opening_book_path, 'rt') as f:
                     opening_book = json.load(f)
                 print(f"✓ Opening book loaded: {len(opening_book)} positions")
             else:
-                print("⚠ Opening book file not found, will use depth 13 for all moves")
+                print("⚠ Opening book file not found at expected path, will use depth 13 for all moves")
                 opening_book = {}
         except Exception as e:
+            import traceback
             print(f"⚠ Failed to load opening book: {e}")
+            print(f"⚠ Traceback: {traceback.format_exc()}")
             opening_book = {}
 
     # Check which AI engines are available
