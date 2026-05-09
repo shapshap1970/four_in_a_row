@@ -791,9 +791,6 @@ async def make_ai_move(game_id: str):
             if os.path.exists(opening_book_path):
                 print(f"  📦 File size: {os.path.getsize(opening_book_path)} bytes")
                 with gzip.open(opening_book_path, 'rt', encoding='utf-8') as f:
-                    content_preview = f.read(100)  # Read first 100 chars to check format
-                    print(f"  📄 Content preview: {content_preview[:50]}...")
-                    f.seek(0)  # Reset to beginning
                     opening_book = json.load(f)
                 print(f"  ✓ Opening book loaded: {len(opening_book)} positions")
             else:
