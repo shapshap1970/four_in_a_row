@@ -1,6 +1,9 @@
 from collections import defaultdict
 import copy
-import display
+try:
+    import display
+except ImportError:
+    display = None
 from bitarray import bitarray
 from bitarray.util import ba2int
 
@@ -36,7 +39,8 @@ class Board:
         return value
 
     def print_board(self):
-        display.print_board(self)
+        if display is not None:
+            display.print_board(self)
 
     def possible_moves(self):
         return [(i, self.max_hight[i]) for i in range(self.cols) if self.max_hight[i] != -1]
