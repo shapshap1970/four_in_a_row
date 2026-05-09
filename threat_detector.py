@@ -77,8 +77,18 @@ def detect_must_block_moves(board, current_player, consec_to_win=4, check_two_mo
         opponent_two_move_wins = detect_two_move_win(board, opponent, consec_to_win)
         if opponent_two_move_wins:
             # Opponent can win in 2 moves! We need to block their setup
-            # Extract all first moves from the winning sequences
-            blocking_moves = list(set(seq[0] for seq in opponent_two_move_wins))
+            # Count which moves appear in winning sequences and prioritize blocking those
+            from collections import Counter
+            move_counter = Counter()
+
+            for seq in opponent_two_move_wins:
+                # Count both first and second moves (if second exists)
+                move_counter[seq[0]] += 1
+                if seq[1] is not None:
+                    move_counter[seq[1]] += 1
+
+            # Return moves sorted by how many threats they block (most important first)
+            blocking_moves = [move for move, count in move_counter.most_common()]
             return ('block_2move', blocking_moves)
 
     # Priority 3: Check if WE can win immediately
