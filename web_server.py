@@ -48,23 +48,33 @@ game_urls: Dict[str, str] = {}
 def load_game(game_id: str) -> dict:
     """Load game from Vercel Blob"""
     try:
+        print(f"📥 Loading game {game_id} from blob...")
+
         # Check if we have the URL cached
         if game_id in game_urls:
             blob_url = game_urls[game_id]
+            print(f"✓ Found cached URL for game {game_id}")
         else:
             # Search for the blob
+            print(f"🔍 Searching for game {game_id} in blob...")
             response = blob_list({"prefix": f"games/{game_id}"})
             if response and 'blobs' in response and len(response['blobs']) > 0:
                 blob_url = response['blobs'][0]['url']
                 game_urls[game_id] = blob_url
+                print(f"✓ Found game {game_id} in blob")
             else:
+                print(f"⚠️  Game {game_id} not found in blob")
                 return None
 
         # Download and unpickle
         data = download_file(blob_url)
-        return pickle.loads(data)
+        game_data = pickle.loads(data)
+        print(f"✓ Loaded game {game_id} from blob")
+        return game_data
     except Exception as e:
-        print(f"Failed to load game {game_id}: {e}")
+        print(f"❌ Failed to load game {game_id}: {e}")
+        import traceback
+        traceback.print_exc()
     return None
 
 def save_game(game_id: str, game_data: dict):
@@ -73,14 +83,21 @@ def save_game(game_id: str, game_data: dict):
         blob_path = f"games/{game_id}.pkl"
         pickled_data = pickle.dumps(game_data)
 
+        print(f"💾 Saving game {game_id} to blob (size: {len(pickled_data)} bytes)...")
+
         # Upload and store the URL
         options = {"allowOverwrite": "true"}  # Allow updating existing game
         response = put(blob_path, pickled_data, options=options)
 
         if response and 'url' in response:
             game_urls[game_id] = response['url']
+            print(f"✓ Game {game_id} saved to blob: {response['url']}")
+        else:
+            print(f"⚠️  Unexpected response from blob put: {response}")
     except Exception as e:
-        print(f"Failed to save game {game_id}: {e}")
+        print(f"❌ Failed to save game {game_id}: {e}")
+        import traceback
+        traceback.print_exc()
 
 def delete_game(game_id: str):
     """Delete game from Vercel Blob"""
