@@ -36,6 +36,35 @@ except Exception as e:
 # Numba removed - Rust Python extension is faster and 1000x smaller
 
 # Game session storage
+# Use file-based persistence for Vercel serverless compatibility
+import pickle
+import os
+from pathlib import Path
+
+GAMES_DIR = Path("/tmp/four_in_a_row_games")
+GAMES_DIR.mkdir(exist_ok=True)
+
+def load_game(game_id: str) -> dict:
+    """Load game from disk"""
+    game_file = GAMES_DIR / f"{game_id}.pkl"
+    if game_file.exists():
+        with open(game_file, 'rb') as f:
+            return pickle.load(f)
+    return None
+
+def save_game(game_id: str, game_data: dict):
+    """Save game to disk"""
+    game_file = GAMES_DIR / f"{game_id}.pkl"
+    with open(game_file, 'wb') as f:
+        pickle.dump(game_data, f)
+
+def delete_game(game_id: str):
+    """Delete game from disk"""
+    game_file = GAMES_DIR / f"{game_id}.pkl"
+    if game_file.exists():
+        game_file.unlink()
+
+# Keep in-memory cache for performance
 games: Dict[str, dict] = {}
 
 # Opening book - loaded on startup (static initial positions)
@@ -388,6 +417,9 @@ async def new_game(request: NewGameRequest):
     # Initialize dynamic cache for this game
     dynamic_cache[game_id] = {}
 
+    # Save game to disk for serverless persistence
+    save_game(game_id, games[game_id])
+
     return GameState(
         game_id=game_id,
         board=board.board,
@@ -402,8 +434,13 @@ async def new_game(request: NewGameRequest):
 @app.post("/api/game/{game_id}/move", response_model=GameState)
 async def make_move(game_id: str, move: MoveRequest):
     """Make a move (human only, use WebSocket for AI moves)"""
+    # Load from disk if not in memory
     if game_id not in games:
-        raise HTTPException(status_code=404, detail="Game not found")
+        game_data = load_game(game_id)
+        if game_data:
+            games[game_id] = game_data
+        else:
+            raise HTTPException(status_code=404, detail="Game not found")
 
     game = games[game_id]
 
@@ -453,6 +490,9 @@ async def make_move(game_id: str, move: MoveRequest):
         game['current_player'] = next_player
         game['number_of_play'] = next_number
 
+    # Save game state to disk
+    save_game(game_id, game)
+
     # Return immediately - don't block on tree extension
     result = GameState(
         game_id=game_id,
@@ -476,8 +516,13 @@ async def make_move(game_id: str, move: MoveRequest):
 @app.get("/api/game/{game_id}/state", response_model=GameState)
 async def get_game_state(game_id: str):
     """Get current game state"""
+    # Load from disk if not in memory
     if game_id not in games:
-        raise HTTPException(status_code=404, detail="Game not found")
+        game_data = load_game(game_id)
+        if game_data:
+            games[game_id] = game_data
+        else:
+            raise HTTPException(status_code=404, detail="Game not found")
 
     game = games[game_id]
     board = game['board']
@@ -496,8 +541,13 @@ async def get_game_state(game_id: str):
 @app.post("/api/game/{game_id}/ai-move", response_model=GameState)
 async def make_ai_move(game_id: str):
     """Make AI move (REST endpoint, no WebSocket)"""
+    # Load from disk if not in memory
     if game_id not in games:
-        raise HTTPException(status_code=404, detail="Game not found")
+        game_data = load_game(game_id)
+        if game_data:
+            games[game_id] = game_data
+        else:
+            raise HTTPException(status_code=404, detail="Game not found")
 
     game = games[game_id]
 
@@ -605,6 +655,9 @@ async def make_ai_move(game_id: str):
 
     # Don't extend tree here - the player move endpoint will trigger it
     # after player completes their turn
+
+    # Save game state to disk
+    save_game(game_id, game)
 
     return GameState(
         game_id=game_id,
