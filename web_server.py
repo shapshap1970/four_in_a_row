@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict
+from collections import defaultdict
 import uuid
 import json
 import asyncio
@@ -37,13 +38,53 @@ except Exception as e:
 
 # Game session storage
 # Use Vercel Blob for serverless persistence
-import pickle
+import json
 import os
 from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
 import io
 
 # In-memory mapping of game_id to blob URL
 game_urls: Dict[str, str] = {}
+
+def serialize_game(game_data: dict) -> bytes:
+    """Serialize game data to JSON (avoiding pickle lambda issues)"""
+    # Convert Board and other non-JSON objects to serializable format
+    serializable = {
+        'board': game_data['board'].board if hasattr(game_data['board'], 'board') else game_data['board'],
+        'cols': game_data['board'].cols if hasattr(game_data['board'], 'cols') else 7,
+        'rows': game_data['board'].rows if hasattr(game_data['board'], 'rows') else 6,
+        'max_hight': dict(game_data['board'].max_hight) if hasattr(game_data['board'], 'max_hight') else {},
+        'search_depth': game_data['search_depth'],
+        'current_player': game_data['current_player'],
+        'number_of_play': game_data['number_of_play'],
+        'last_column': game_data['last_column'],
+        'game_over': game_data['game_over'],
+        'winner': game_data['winner'],
+        'move_history': game_data['move_history'],
+    }
+    return json.dumps(serializable).encode('utf-8')
+
+def deserialize_game(data: bytes) -> dict:
+    """Deserialize game data from JSON and reconstruct objects"""
+    serialized = json.loads(data.decode('utf-8'))
+
+    # Reconstruct Board object
+    board = Board(serialized['cols'], serialized['rows'])
+    board.board = serialized['board']
+    board.max_hight = defaultdict(lambda: serialized['rows']-1, serialized['max_hight'])
+
+    return {
+        'board': board,
+        'ai_engine': None,  # Will be set when accessed
+        'search_depth': serialized['search_depth'],
+        'current_player': serialized['current_player'],
+        'number_of_play': serialized['number_of_play'],
+        'last_column': serialized['last_column'],
+        'game_over': serialized['game_over'],
+        'winner': serialized['winner'],
+        'move_history': serialized['move_history'],
+        'tree_depth': 8,  # Default value
+    }
 
 def load_game(game_id: str) -> dict:
     """Load game from Vercel Blob"""
@@ -66,9 +107,9 @@ def load_game(game_id: str) -> dict:
                 print(f"⚠️  Game {game_id} not found in blob")
                 return None
 
-        # Download and unpickle
+        # Download and deserialize
         data = download_file(blob_url)
-        game_data = pickle.loads(data)
+        game_data = deserialize_game(data)
         print(f"✓ Loaded game {game_id} from blob")
         return game_data
     except Exception as e:
@@ -80,14 +121,14 @@ def load_game(game_id: str) -> dict:
 def save_game(game_id: str, game_data: dict):
     """Save game to Vercel Blob"""
     try:
-        blob_path = f"games/{game_id}.pkl"
-        pickled_data = pickle.dumps(game_data)
+        blob_path = f"games/{game_id}.json"
+        serialized_data = serialize_game(game_data)
 
-        print(f"💾 Saving game {game_id} to blob (size: {len(pickled_data)} bytes)...")
+        print(f"💾 Saving game {game_id} to blob (size: {len(serialized_data)} bytes)...")
 
         # Upload and store the URL
         options = {"allowOverwrite": "true"}  # Allow updating existing game
-        response = put(blob_path, pickled_data, options=options)
+        response = put(blob_path, serialized_data, options=options)
 
         if response and 'url' in response:
             game_urls[game_id] = response['url']
