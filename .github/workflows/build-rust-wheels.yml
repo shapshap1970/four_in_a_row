@@ -11,18 +11,22 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: four_in_a_row_rust
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build wheels
+      - name: Build Linux wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out ../dist -i python3.11
+          target: x86_64
+          args: --release --out dist --manifest-path four_in_a_row_rust/Cargo.toml
           sccache: 'true'
           manylinux: auto
+          before-script-linux: |
+            # Limit to Python 3.11-3.13 to avoid PyO3 0.22 incompatibility with 3.14
+            export PYO3_PYTHON=/opt/python/cp311-cp311/bin/python
+
+      - name: List built wheels
+        run: ls -lh dist/
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
