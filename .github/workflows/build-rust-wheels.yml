@@ -20,7 +20,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --find-interpreter --skip cp314
+          args: --release --out dist --interpreter python3.11 python3.12 python3.13
           sccache: 'true'
           manylinux: auto
 
