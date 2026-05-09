@@ -377,7 +377,7 @@ async def new_game(request: NewGameRequest):
         'ai_engine': ai_engine,
         'search_depth': search_depth,
         'current_player': current_player,
-        'number_of_play': 2,
+        'number_of_play': 1,  # First move is always 1 coin, then 2 per turn
         'last_column': None,
         'game_over': False,
         'winner': None,
