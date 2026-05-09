@@ -40,8 +40,15 @@ except Exception as e:
 # Use Vercel Blob for serverless persistence
 import json
 import os
-from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
 import io
+
+# Make vercel_blob optional for local/test environments
+try:
+    from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
+    BLOB_AVAILABLE = True
+except ImportError:
+    BLOB_AVAILABLE = False
+    print("⚠️ vercel_blob not installed - blob persistence disabled")
 
 # In-memory mapping of game_id to blob URL
 game_urls: Dict[str, str] = {}
@@ -88,6 +95,8 @@ def deserialize_game(data: bytes) -> dict:
 
 def load_game(game_id: str) -> dict:
     """Load game from Vercel Blob"""
+    if not BLOB_AVAILABLE:
+        return None
     try:
         print(f"📥 Loading game {game_id} from blob...")
 
@@ -127,6 +136,9 @@ def load_game(game_id: str) -> dict:
 
 def save_game(game_id: str, game_data: dict):
     """Save game to Vercel Blob"""
+    if not BLOB_AVAILABLE:
+        print("⚠️ Blob not available - game state not persisted")
+        return
     try:
         blob_path = f"games/{game_id}.json"
         serialized_data = serialize_game(game_data)
