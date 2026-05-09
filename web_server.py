@@ -336,6 +336,13 @@ async def lifespan(app: FastAPI):
     import os
     global opening_book
 
+    # Check Vercel Blob configuration
+    blob_token = os.getenv('BLOB_READ_WRITE_TOKEN')
+    if blob_token:
+        print(f"✓ Vercel Blob configured (token: {blob_token[:10]}...)")
+    else:
+        print("⚠️  Vercel Blob NOT configured - games won't persist across instances!")
+
     # Always skip opening book in test mode - we're not using it anyway
     # (opening book disabled in favor of depth-12 Rust AI)
     opening_book = {}
