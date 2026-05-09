@@ -382,12 +382,16 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    print("🧹 Cleaning up on shutdown...")
     games.clear()
+    game_urls.clear()  # Clear blob URL cache
     dynamic_cache.clear()
+    print("✓ In-memory caches cleared")
 
     # Shutdown thread pool executor gracefully
     try:
         tree_extension_executor.shutdown(wait=False, cancel_futures=True)
+        print("✓ Thread pool executor shut down")
     except Exception:
         pass  # Ignore shutdown errors in test mode
 
