@@ -624,10 +624,15 @@ async def make_move(game_id: str, move: MoveRequest):
     game['move_history'].append(('X', move.column))
     game['last_column'] = move.column
 
+    # Log move for game flow tracking
+    move_number = len(game['move_history'])
+    print(f"📝 Game {game_id[:8]}: Move #{move_number} - Player (X) plays column {move.column}")
+
     # Check if player won
     if board.is_winner('X', 4):
         game['game_over'] = True
         game['winner'] = 'X'
+        print(f"🎉 Game {game_id[:8]}: Player (X) WINS after {move_number} moves!")
     elif board.is_end_of_game():
         game['game_over'] = True
         game['winner'] = None  # Draw
@@ -824,10 +829,15 @@ async def make_ai_move(game_id: str):
     game['move_history'].append(('O', best_column))
     game['last_column'] = best_column
 
+    # Log move for game flow tracking
+    move_number = len(game['move_history'])
+    print(f"📝 Game {game_id[:8]}: Move #{move_number} - AI (O) plays column {best_column}")
+
     # Check if AI won
     if board.is_winner('O', 4):
         game['game_over'] = True
         game['winner'] = 'O'
+        print(f"🤖 Game {game_id[:8]}: AI (O) WINS after {move_number} moves!")
     elif board.is_end_of_game():
         game['game_over'] = True
         game['winner'] = None
