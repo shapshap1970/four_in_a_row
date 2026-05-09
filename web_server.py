@@ -443,18 +443,28 @@ async def lifespan(app: FastAPI):
     else:
         print("⚠️  Vercel Blob NOT configured - games won't persist across instances!")
 
-    # Always skip opening book in test mode - we're not using it anyway
-    # (opening book disabled in favor of depth-12 Rust AI)
-    opening_book = {}
-
     # Check if we're in test/CI mode
     is_test_mode = os.getenv('PYTEST_CURRENT_TEST') or os.getenv('CI') or os.getenv('GITHUB_ACTIONS')
 
     if is_test_mode:
-        print("⚠ Test/CI mode: Fast startup, skipping heavy initialization")
+        print("⚠ Test/CI mode: Fast startup, skipping opening book")
+        opening_book = {}
     else:
-        # In production, we can optionally load opening book (currently disabled)
-        print("⚠ Opening book disabled - using depth-12 Rust AI for all moves")
+        # Load opening book for strong defensive openings
+        try:
+            import gzip
+            import json
+            opening_book_path = os.path.join(os.path.dirname(__file__), 'opening_book_7x6.json.gz')
+            if os.path.exists(opening_book_path):
+                with gzip.open(opening_book_path, 'rt') as f:
+                    opening_book = json.load(f)
+                print(f"✓ Opening book loaded: {len(opening_book)} positions")
+            else:
+                print("⚠ Opening book file not found, will use depth 13 for all moves")
+                opening_book = {}
+        except Exception as e:
+            print(f"⚠ Failed to load opening book: {e}")
+            opening_book = {}
 
     # Check which AI engines are available
     if RUST_EXTENSION_AVAILABLE:
@@ -723,8 +733,7 @@ async def make_ai_move(game_id: str):
     if game['current_player'] != 'O':
         raise HTTPException(status_code=400, detail="Not AI's turn")
 
-    # Check caches (dynamic cache → compute)
-    # NOTE: Opening book disabled - using depth 12 for stronger play
+    # Check caches (opening book → dynamic cache → compute)
     board = game['board']
     board_hash = str(board.to_hash())
     best_column = None
@@ -761,14 +770,20 @@ async def make_ai_move(game_id: str):
         except Exception as e:
             print(f"  ⚠️  Threat detection error: {e}, falling back to normal search")
 
-    # Priority 1: Check dynamic cache (if no forced move from threat detection)
+    # Priority 1: Check opening book (if no forced move from threat detection)
+    if best_column is None and opening_book and board_hash in opening_book:
+        book_entry = opening_book[board_hash]
+        best_column = book_entry['best_move'] if isinstance(book_entry, dict) else book_entry
+        print(f"  📖 Opening book hit: column {best_column}")
+
+    # Priority 2: Check dynamic cache (if no forced move or opening book)
     if best_column is None and game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
         cache_entry = dynamic_cache[game_id][board_hash]
         best_column = cache_entry[1] if isinstance(cache_entry, list) else cache_entry
         cache_hit = True
         print(f"  ✓ Dynamic cache hit")
 
-    # Priority 2: Compute with Rust AI (if not set by threat detection or cache)
+    # Priority 3: Compute with Rust AI (if not set by threat detection, opening book, or cache)
     if best_column is None:
         search_depth = game['search_depth']
 
