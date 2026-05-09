@@ -800,6 +800,7 @@ async def make_ai_move(game_id: str):
             opening_book = {}
         opening_book_loaded = True
 
+    # Now check if position is in opening book
     if best_column is None and opening_book and board_hash in opening_book:
         book_entry = opening_book[board_hash]
         best_column = book_entry['best_move'] if isinstance(book_entry, dict) else book_entry
