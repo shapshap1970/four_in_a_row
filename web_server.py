@@ -777,41 +777,8 @@ async def make_ai_move(game_id: str):
         except Exception as e:
             print(f"  ⚠️  Threat detection error: {e}, falling back to normal search")
 
-    # Priority 1: Check opening book (if no forced move from threat detection)
-    # Lazy-load opening book on first AI move if not loaded yet
-    global opening_book, opening_book_loaded
-    if not opening_book_loaded:
-        try:
-            import gzip
-            import json
-            import os
-            opening_book_path = os.path.join(os.path.dirname(__file__), 'opening_book_7x6.json.gz')
-            print(f"  🔍 Lazy-loading opening book from: {opening_book_path}")
-
-            if os.path.exists(opening_book_path):
-                print(f"  📦 File size: {os.path.getsize(opening_book_path)} bytes")
-                with gzip.open(opening_book_path, 'rt', encoding='utf-8') as f:
-                    opening_book = json.load(f)
-                print(f"  ✓ Opening book loaded: {len(opening_book)} positions")
-            else:
-                print(f"  ⚠️  Opening book not found")
-                opening_book = {}
-        except json.JSONDecodeError as e:
-            print(f"  ⚠️  JSON decode error: {e}")
-            print(f"  ⚠️  Opening book file may be corrupted, using depth 13 for all moves")
-            opening_book = {}
-        except Exception as e:
-            import traceback
-            print(f"  ⚠️  Failed to load opening book: {e}")
-            print(f"  ⚠️  Traceback: {traceback.format_exc()[:500]}")
-            opening_book = {}
-        opening_book_loaded = True
-
-    # Now check if position is in opening book
-    if best_column is None and opening_book and board_hash in opening_book:
-        book_entry = opening_book[board_hash]
-        best_column = book_entry['best_move'] if isinstance(book_entry, dict) else book_entry
-        print(f"  📖 Opening book hit: column {best_column}")
+    # Priority 1: Opening book disabled (too large for Vercel serverless - causes timeout)
+    # Relying on depth 13 Rust AI + threat detection for all moves
 
     # Priority 2: Check dynamic cache (if no forced move or opening book)
     if best_column is None and game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
