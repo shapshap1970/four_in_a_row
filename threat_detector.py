@@ -20,26 +20,71 @@ def detect_immediate_win(board, player, consec_to_win=4):
     return winning_moves
 
 
-def detect_must_block_moves(board, current_player, consec_to_win=4):
+def detect_two_move_win(board, player, consec_to_win=4):
+    """
+    Detect if player can win within their next 2 consecutive moves.
+    This is important for the 2-move rule where a player gets 2 moves per turn.
+
+    Returns list of (col1, col2) tuples that lead to a win.
+    """
+    from board import Board
+
+    winning_sequences = []
+
+    for col1, _ in board.possible_moves():
+        # Simulate first move
+        test_board1 = Board(board)
+        test_board1.play_move(col1, player)
+
+        # Check if won after first move
+        if test_board1.is_winner(player, consec_to_win):
+            winning_sequences.append((col1, None))
+            continue
+
+        # Try all second moves
+        for col2, _ in test_board1.possible_moves():
+            # Simulate second move
+            test_board2 = Board(test_board1)
+            test_board2.play_move(col2, player)
+
+            if test_board2.is_winner(player, consec_to_win):
+                winning_sequences.append((col1, col2))
+
+    return winning_sequences
+
+
+def detect_must_block_moves(board, current_player, consec_to_win=4, check_two_moves=True):
     """
     Detect moves that MUST be made to block opponent's immediate win.
 
     Returns:
-    - If opponent can win next move: list of blocking columns (must play one!)
-    - If we can win next move: list of winning columns (should play one!)
-    - Otherwise: empty list
+    - If opponent can win in their turn: ('block', list of blocking columns) - MUST BLOCK!
+    - If we can win in our turn: ('win', list of winning columns)
+    - Otherwise: ('none', [])
+
+    NOTE: With check_two_moves=True, also checks if opponent can win within 2 consecutive
+    moves (important for 2-move rule). This adds ~50ms but catches critical threats.
     """
     opponent = 'X' if current_player == 'O' else 'O'
 
-    # Priority 1: Check if WE can win immediately
-    our_winning_moves = detect_immediate_win(board, current_player, consec_to_win)
-    if our_winning_moves:
-        return ('win', our_winning_moves)
-
-    # Priority 2: Check if opponent can win on their next turn - MUST BLOCK!
+    # Priority 1: Check if opponent can win on their immediate next move
     opponent_winning_moves = detect_immediate_win(board, opponent, consec_to_win)
     if opponent_winning_moves:
         return ('block', opponent_winning_moves)
+
+    # Priority 2: Check if opponent can win within 2 moves (for 2-move rule)
+    if check_two_moves:
+        opponent_two_move_wins = detect_two_move_win(board, opponent, consec_to_win)
+        if opponent_two_move_wins:
+            # Opponent can win in 2 moves! We need to block their setup
+            # Extract all first moves from the winning sequences
+            blocking_moves = list(set(seq[0] for seq in opponent_two_move_wins))
+            return ('block_2move', blocking_moves)
+
+    # Priority 3: Check if WE can win immediately
+    our_winning_moves = detect_immediate_win(board, current_player, consec_to_win)
+    if our_winning_moves:
+        return ('win', our_winning_moves)
 
     return ('none', [])
 
