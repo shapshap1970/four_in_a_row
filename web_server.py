@@ -539,8 +539,8 @@ async def new_game(request: NewGameRequest):
         if RUST_EXTENSION_AVAILABLE:
             # Rust Python extension: fastest + smallest (~170KB)
             ai_engine = None  # Will use rust_get_best_move directly
-            search_depth = 14  # Rust can handle depth 14!
-            print("✓ Vercel mode: Using Rust Python extension at depth 14 (FAST!)")
+            search_depth = 12  # Rust at depth 12 (depth 14 might timeout on Vercel)
+            print("✓ Vercel mode: Using Rust Python extension at depth 12 (FAST!)")
         else:
             # Fallback: Python AI at depth 9
             ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
@@ -730,7 +730,8 @@ async def make_ai_move(game_id: str):
     total_pieces = sum(1 for row in board.board for cell in row if cell != ' ')
     if total_pieces >= 6:
         try:
-            forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=True)
+            # Temporarily disable 2-move detection for stability
+            forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=False)
             if forced_type == 'win' and forced_moves:
                 # We can win immediately!
                 best_column = forced_moves[0]  # Just take first winning move
