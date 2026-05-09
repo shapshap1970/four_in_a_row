@@ -730,8 +730,8 @@ async def make_ai_move(game_id: str):
     total_pieces = sum(1 for row in board.board for cell in row if cell != ' ')
     if total_pieces >= 6:
         try:
-            # Temporarily disable 2-move detection for stability
-            forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=False)
+            # Enable 2-move detection to catch tactical sequences
+            forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=True)
             if forced_type == 'win' and forced_moves:
                 # We can win immediately!
                 best_column = forced_moves[0]  # Just take first winning move
