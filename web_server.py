@@ -182,6 +182,7 @@ games: Dict[str, dict] = {}
 
 # Opening book - loaded on startup (static initial positions)
 opening_book = None
+opening_book_loaded = False  # Track if we attempted to load
 
 # Dynamic tree cache - extends during gameplay (per-game)
 # Format: {game_id: {board_hash: [score, best_move]}}
@@ -777,6 +778,28 @@ async def make_ai_move(game_id: str):
             print(f"  ⚠️  Threat detection error: {e}, falling back to normal search")
 
     # Priority 1: Check opening book (if no forced move from threat detection)
+    # Lazy-load opening book on first AI move if not loaded yet
+    global opening_book, opening_book_loaded
+    if not opening_book_loaded:
+        try:
+            import gzip
+            import json
+            import os
+            opening_book_path = os.path.join(os.path.dirname(__file__), 'opening_book_7x6.json.gz')
+            print(f"  🔍 Lazy-loading opening book from: {opening_book_path}")
+
+            if os.path.exists(opening_book_path):
+                with gzip.open(opening_book_path, 'rt') as f:
+                    opening_book = json.load(f)
+                print(f"  ✓ Opening book loaded: {len(opening_book)} positions")
+            else:
+                print(f"  ⚠️  Opening book not found")
+                opening_book = {}
+        except Exception as e:
+            print(f"  ⚠️  Failed to load opening book: {e}")
+            opening_book = {}
+        opening_book_loaded = True
+
     if best_column is None and opening_book and board_hash in opening_book:
         book_entry = opening_book[board_hash]
         best_column = book_entry['best_move'] if isinstance(book_entry, dict) else book_entry
