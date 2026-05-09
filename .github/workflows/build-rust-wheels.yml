@@ -11,16 +11,18 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: four_in_a_row_rust
     steps:
       - uses: actions/checkout@v4
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter --skip cp314
           sccache: 'true'
           manylinux: auto
-          working-directory: ./four_in_a_row_rust
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

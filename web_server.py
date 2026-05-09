@@ -33,19 +33,7 @@ except Exception as e:
     rust_get_best_move = None
     print(f"⚠️ Rust extension error: {e}")
 
-# Import Numba AI as fallback
-try:
-    from four_in_a_row_numba import FourInARowNumba
-    NUMBA_AVAILABLE = True
-    print("✓ Numba successfully imported")
-except ImportError as e:
-    NUMBA_AVAILABLE = False
-    FourInARowNumba = None
-    print(f"⚠️ Numba import failed: {e}")
-except Exception as e:
-    NUMBA_AVAILABLE = False
-    FourInARowNumba = None
-    print(f"⚠️ Numba error: {e}")
+# Numba removed - Rust Python extension is faster and 1000x smaller
 
 # Game session storage
 games: Dict[str, dict] = {}
@@ -357,18 +345,14 @@ async def new_game(request: NewGameRequest):
     # Adjust AI engine and depth based on environment
     import os
     if os.getenv('VERCEL_DEPLOYMENT') or os.getenv('DISABLE_RUST_AI'):
-        # Vercel: Priority order - Rust extension > Numba > Python fallback
+        # Vercel: Priority order - Rust extension > Python fallback
         if RUST_EXTENSION_AVAILABLE:
             # Rust Python extension: fastest + smallest (~170KB)
             ai_engine = None  # Will use rust_get_best_move directly
             search_depth = 12  # Rust can handle depth 12 easily!
             print("✓ Vercel mode: Using Rust Python extension at depth 12 (FAST!)")
-        elif NUMBA_AVAILABLE:
-            ai_engine = FourInARowNumba(rows=6, cols=7, consec_to_win=4, consec_moves=2)
-            search_depth = 10  # Numba can handle depth 10 on Vercel!
-            print("✓ Vercel mode: Using Numba AI at depth 10 (5-10x faster!)")
         else:
-            # Fallback: Python AI at depth 9 (Numba too large for Vercel 250MB limit)
+            # Fallback: Python AI at depth 9
             ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
                                              consec_moves=2, show_progress=False)
             search_depth = 9  # Good balance: stronger than 6, faster than 10
