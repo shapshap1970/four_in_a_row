@@ -760,20 +760,24 @@ async def make_ai_move(game_id: str):
 
         # Priority 1: Rust Python extension (Vercel-compatible, ~170KB)
         if RUST_EXTENSION_AVAILABLE:
-            loop = asyncio.get_event_loop()
-            # Convert board to string format for Rust extension
-            board_str = '\n'.join(''.join(row) for row in board.board)
-            player_num = 2  # 'O' = 2
+            try:
+                loop = asyncio.get_event_loop()
+                # Convert board to string format for Rust extension
+                board_str = '\n'.join(''.join(row) for row in board.board)
+                player_num = 2  # 'O' = 2
 
-            eval_score, best_column = await loop.run_in_executor(
-                None,
-                rust_get_best_move,
-                board_str,
-                search_depth,
-                player_num,
-                game['number_of_play']
-            )
-            print(f"  🚀 Rust extension (depth {search_depth}) - FAST!")
+                eval_score, best_column = await loop.run_in_executor(
+                    None,
+                    rust_get_best_move,
+                    board_str,
+                    search_depth,
+                    player_num,
+                    game['number_of_play']
+                )
+                print(f"  🚀 Rust extension (depth {search_depth}) - FAST! Column: {best_column}, Score: {eval_score}")
+            except Exception as e:
+                print(f"  ❌ Rust extension error: {e}")
+                best_column = None
         # Priority 2: Standalone Rust AI binary (local only)
         elif is_rust_ai_available():
             loop = asyncio.get_event_loop()
@@ -802,11 +806,13 @@ async def make_ai_move(game_id: str):
             print(f"  ⏱️  Python AI (depth {search_depth}) - slow")
 
     if best_column is None:
+        print(f"  ❌ CRITICAL: best_column is None! Threat detection: total_pieces={total_pieces}, Cache hit: {cache_hit}")
+        print(f"  Rust available: {RUST_EXTENSION_AVAILABLE}, Game engine: {game.get('ai_engine') is not None}")
         # Fallback: just pick any valid move
         valid_moves = [col for col, _ in board.possible_moves()]
         if valid_moves:
             best_column = valid_moves[len(valid_moves) // 2]  # Pick middle column
-            print(f"  ⚠️  Fallback: selecting middle valid column {best_column}")
+            print(f"  ⚠️  EMERGENCY FALLBACK: selecting middle valid column {best_column}")
         else:
             raise HTTPException(status_code=500, detail="No valid moves available (board full?)")
 
