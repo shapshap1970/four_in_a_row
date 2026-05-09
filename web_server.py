@@ -149,7 +149,10 @@ def save_game(game_id: str, game_data: dict):
         token = os.getenv('BLOB_READ_WRITE_TOKEN')
         print(f"🔑 Token present: {bool(token)}, starts with: {token[:15] if token else 'N/A'}...")
 
-        options = {"allowOverwrite": "true"}  # Allow updating existing game
+        options = {
+            "allowOverwrite": "true",
+            "access": "private"  # Explicitly set private access
+        }
         if token:
             options["token"] = token
 
