@@ -43,12 +43,16 @@ import os
 import io
 
 # Make vercel_blob optional for local/test environments
-try:
-    from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
-    BLOB_AVAILABLE = True
-except ImportError:
-    BLOB_AVAILABLE = False
-    print("⚠️ vercel_blob not installed - blob persistence disabled")
+# TEMPORARY: Disable blob storage until we fix the private access issue
+BLOB_AVAILABLE = False
+print("⚠️ Blob storage temporarily disabled - using in-memory only")
+
+# try:
+#     from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
+#     BLOB_AVAILABLE = True
+# except ImportError:
+#     BLOB_AVAILABLE = False
+#     print("⚠️ vercel_blob not installed - blob persistence disabled")
 
 # In-memory mapping of game_id to blob URL
 game_urls: Dict[str, str] = {}
