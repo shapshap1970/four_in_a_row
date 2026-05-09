@@ -444,11 +444,13 @@ async def lifespan(app: FastAPI):
         # In production, we can optionally load opening book (currently disabled)
         print("⚠ Opening book disabled - using depth-12 Rust AI for all moves")
 
-    # Check if Rust AI is available (will be False in CI)
-    if is_rust_ai_available():
-        print("✓ Rust AI engine available (10-50x faster)")
+    # Check which AI engines are available
+    if RUST_EXTENSION_AVAILABLE:
+        print("✓ Rust Python extension available - depth 12 FAST mode enabled!")
+    elif is_rust_ai_available():
+        print("✓ Rust AI binary available (local only)")
     else:
-        print("⚠ Rust AI not found, using Python (slower)")
+        print("⚠ No Rust AI available - will use Python fallback (slower)")
 
     yield
 
