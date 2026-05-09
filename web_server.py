@@ -729,19 +729,22 @@ async def make_ai_move(game_id: str):
     # Only check if game is somewhat advanced (at least 6 pieces on board)
     total_pieces = sum(1 for row in board.board for cell in row if cell != ' ')
     if total_pieces >= 6:
-        forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=True)
-        if forced_type == 'win':
-            # We can win immediately!
-            best_column = forced_moves[0]  # Just take first winning move
-            print(f"  ⚡ IMMEDIATE WIN available! Playing column {best_column}")
-        elif forced_type == 'block':
-            # Opponent can win next turn - MUST block!
-            best_column = forced_moves[0]  # Take first blocking move
-            print(f"  🛡️  BLOCKING opponent 1-move threat! Playing column {best_column}")
-        elif forced_type == 'block_2move':
-            # Opponent can win in 2 moves - block their setup!
-            best_column = forced_moves[0]  # Take first blocking move
-            print(f"  🛡️  BLOCKING opponent 2-move threat! Playing column {best_column}")
+        try:
+            forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4, check_two_moves=True)
+            if forced_type == 'win' and forced_moves:
+                # We can win immediately!
+                best_column = forced_moves[0]  # Just take first winning move
+                print(f"  ⚡ IMMEDIATE WIN available! Playing column {best_column}")
+            elif forced_type == 'block' and forced_moves:
+                # Opponent can win next turn - MUST block!
+                best_column = forced_moves[0]  # Take first blocking move
+                print(f"  🛡️  BLOCKING opponent 1-move threat! Playing column {best_column}")
+            elif forced_type == 'block_2move' and forced_moves:
+                # Opponent can win in 2 moves - block their setup!
+                best_column = forced_moves[0]  # Take first blocking move
+                print(f"  🛡️  BLOCKING opponent 2-move threat! Playing column {best_column}")
+        except Exception as e:
+            print(f"  ⚠️  Threat detection error: {e}, falling back to normal search")
 
     # Priority 1: Check dynamic cache (if no forced move)
     elif game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
@@ -798,7 +801,13 @@ async def make_ai_move(game_id: str):
             print(f"  ⏱️  Python AI (depth {search_depth}) - slow")
 
     if best_column is None:
-        raise HTTPException(status_code=500, detail="AI couldn't find a move")
+        # Fallback: just pick any valid move
+        valid_moves = [col for col, _ in board.possible_moves()]
+        if valid_moves:
+            best_column = valid_moves[len(valid_moves) // 2]  # Pick middle column
+            print(f"  ⚠️  Fallback: selecting middle valid column {best_column}")
+        else:
+            raise HTTPException(status_code=500, detail="No valid moves available (board full?)")
 
     # Check if this is the first move BEFORE adding to history
     is_first_move = len(game['move_history']) == 0
