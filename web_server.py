@@ -394,9 +394,12 @@ async def lifespan(app: FastAPI):
     import os
     global opening_book
 
-    # Check Vercel Blob configuration
-    blob_token = os.getenv('BLOB_READ_WRITE_TOKEN')
+    # Check Vercel Blob configuration (handle both correct and duplicated env var names)
+    blob_token = os.getenv('BLOB_READ_WRITE_TOKEN') or os.getenv('BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN')
     if blob_token:
+        # Set the correct env var name if using the duplicated one
+        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
+            os.environ['BLOB_READ_WRITE_TOKEN'] = blob_token
         print(f"✓ Vercel Blob configured (token: {blob_token[:10]}...)")
     else:
         print("⚠️  Vercel Blob NOT configured - games won't persist across instances!")
