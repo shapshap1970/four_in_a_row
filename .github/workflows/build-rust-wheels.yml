@@ -20,7 +20,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --interpreter python3.11 python3.12 python3.13
+          args: --release --out ../dist -i python3.11
           sccache: 'true'
           manylinux: auto
 
@@ -28,4 +28,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-x86_64
-          path: four_in_a_row_rust/dist/*.whl
+          path: dist/*.whl
