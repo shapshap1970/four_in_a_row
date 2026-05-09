@@ -747,15 +747,15 @@ async def make_ai_move(game_id: str):
         except Exception as e:
             print(f"  ⚠️  Threat detection error: {e}, falling back to normal search")
 
-    # Priority 1: Check dynamic cache (if no forced move)
-    elif game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
+    # Priority 1: Check dynamic cache (if no forced move from threat detection)
+    if best_column is None and game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
         cache_entry = dynamic_cache[game_id][board_hash]
         best_column = cache_entry[1] if isinstance(cache_entry, list) else cache_entry
         cache_hit = True
         print(f"  ✓ Dynamic cache hit")
 
-    # Priority 2: Compute with Rust AI
-    else:
+    # Priority 2: Compute with Rust AI (if not set by threat detection or cache)
+    if best_column is None:
         search_depth = game['search_depth']
 
         # Priority 1: Rust Python extension (Vercel-compatible, ~170KB)
