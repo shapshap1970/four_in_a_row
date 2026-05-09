@@ -17,16 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Linux wheels
+      - name: Build Linux wheels for Python 3.11 and 3.12
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out dist --manifest-path four_in_a_row_rust/Cargo.toml
+          args: --release --out dist --manifest-path four_in_a_row_rust/Cargo.toml --interpreter python3.11 python3.12
           sccache: 'true'
           manylinux: auto
-          before-script-linux: |
-            # Limit to Python 3.11-3.13 to avoid PyO3 0.22 incompatibility with 3.14
-            export PYO3_PYTHON=/opt/python/cp311-cp311/bin/python
 
       - name: List built wheels
         run: |
