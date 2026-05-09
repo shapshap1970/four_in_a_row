@@ -789,14 +789,24 @@ async def make_ai_move(game_id: str):
             print(f"  🔍 Lazy-loading opening book from: {opening_book_path}")
 
             if os.path.exists(opening_book_path):
-                with gzip.open(opening_book_path, 'rt') as f:
+                print(f"  📦 File size: {os.path.getsize(opening_book_path)} bytes")
+                with gzip.open(opening_book_path, 'rt', encoding='utf-8') as f:
+                    content_preview = f.read(100)  # Read first 100 chars to check format
+                    print(f"  📄 Content preview: {content_preview[:50]}...")
+                    f.seek(0)  # Reset to beginning
                     opening_book = json.load(f)
                 print(f"  ✓ Opening book loaded: {len(opening_book)} positions")
             else:
                 print(f"  ⚠️  Opening book not found")
                 opening_book = {}
+        except json.JSONDecodeError as e:
+            print(f"  ⚠️  JSON decode error: {e}")
+            print(f"  ⚠️  Opening book file may be corrupted, using depth 13 for all moves")
+            opening_book = {}
         except Exception as e:
+            import traceback
             print(f"  ⚠️  Failed to load opening book: {e}")
+            print(f"  ⚠️  Traceback: {traceback.format_exc()[:500]}")
             opening_book = {}
         opening_book_loaded = True
 
