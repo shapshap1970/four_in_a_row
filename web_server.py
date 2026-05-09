@@ -43,16 +43,13 @@ import os
 import io
 
 # Make vercel_blob optional for local/test environments
-# TEMPORARY: Disable blob storage until we fix the private access issue
-BLOB_AVAILABLE = False
-print("⚠️ Blob storage temporarily disabled - using in-memory only")
-
-# try:
-#     from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
-#     BLOB_AVAILABLE = True
-# except ImportError:
-#     BLOB_AVAILABLE = False
-#     print("⚠️ vercel_blob not installed - blob persistence disabled")
+try:
+    from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
+    BLOB_AVAILABLE = True
+    print("✓ Blob storage available")
+except ImportError:
+    BLOB_AVAILABLE = False
+    print("⚠️ vercel_blob not installed - blob persistence disabled")
 
 # In-memory mapping of game_id to blob URL
 game_urls: Dict[str, str] = {}
@@ -104,9 +101,8 @@ def load_game(game_id: str) -> dict:
     try:
         print(f"📥 Loading game {game_id} from blob...")
 
-        # Get token for private blob access
-        token = os.getenv('BLOB_READ_WRITE_TOKEN')
-        options = {"token": token} if token else {}
+        # Public blob - no token needed
+        options = {}
 
         # Check if we have the URL cached
         if game_id in game_urls:
@@ -115,9 +111,8 @@ def load_game(game_id: str) -> dict:
         else:
             # Search for the blob
             print(f"🔍 Searching for game {game_id} in blob...")
+            # Public blob - no token needed
             list_options = {"prefix": f"games/{game_id}"}
-            if token:
-                list_options["token"] = token
             response = blob_list(list_options)
             if response and 'blobs' in response and len(response['blobs']) > 0:
                 blob_url = response['blobs'][0]['url']
@@ -154,11 +149,9 @@ def save_game(game_id: str, game_data: dict):
         print(f"🔑 Token present: {bool(token)}, starts with: {token[:15] if token else 'N/A'}...")
 
         options = {
-            "allowOverwrite": "true",
-            "access": "private"  # Explicitly set private access
+            "allowOverwrite": "true"
+            # Public blob - no access or token needed
         }
-        if token:
-            options["token"] = token
 
         print(f"📤 Calling put() with options keys: {list(options.keys())}")
         response = put(blob_path, serialized_data, options=options)
@@ -177,9 +170,8 @@ def delete_game(game_id: str):
     """Delete game from Vercel Blob"""
     try:
         if game_id in game_urls:
-            token = os.getenv('BLOB_READ_WRITE_TOKEN')
-            options = {"token": token} if token else {}
-            blob_delete(game_urls[game_id], options=options)
+            # Public blob - no token needed
+            blob_delete(game_urls[game_id])
             del game_urls[game_id]
     except Exception as e:
         print(f"Failed to delete game {game_id}: {e}")
