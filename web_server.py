@@ -36,33 +36,60 @@ except Exception as e:
 # Numba removed - Rust Python extension is faster and 1000x smaller
 
 # Game session storage
-# Use file-based persistence for Vercel serverless compatibility
+# Use Vercel Blob for serverless persistence
 import pickle
 import os
-from pathlib import Path
+from vercel_blob import put, list as blob_list, delete as blob_delete, download_file
+import io
 
-GAMES_DIR = Path("/tmp/four_in_a_row_games")
-GAMES_DIR.mkdir(exist_ok=True)
+# In-memory mapping of game_id to blob URL
+game_urls: Dict[str, str] = {}
 
 def load_game(game_id: str) -> dict:
-    """Load game from disk"""
-    game_file = GAMES_DIR / f"{game_id}.pkl"
-    if game_file.exists():
-        with open(game_file, 'rb') as f:
-            return pickle.load(f)
+    """Load game from Vercel Blob"""
+    try:
+        # Check if we have the URL cached
+        if game_id in game_urls:
+            blob_url = game_urls[game_id]
+        else:
+            # Search for the blob
+            response = blob_list({"prefix": f"games/{game_id}"})
+            if response and 'blobs' in response and len(response['blobs']) > 0:
+                blob_url = response['blobs'][0]['url']
+                game_urls[game_id] = blob_url
+            else:
+                return None
+
+        # Download and unpickle
+        data = download_file(blob_url)
+        return pickle.loads(data)
+    except Exception as e:
+        print(f"Failed to load game {game_id}: {e}")
     return None
 
 def save_game(game_id: str, game_data: dict):
-    """Save game to disk"""
-    game_file = GAMES_DIR / f"{game_id}.pkl"
-    with open(game_file, 'wb') as f:
-        pickle.dump(game_data, f)
+    """Save game to Vercel Blob"""
+    try:
+        blob_path = f"games/{game_id}.pkl"
+        pickled_data = pickle.dumps(game_data)
+
+        # Upload and store the URL
+        options = {"allowOverwrite": "true"}  # Allow updating existing game
+        response = put(blob_path, pickled_data, options=options)
+
+        if response and 'url' in response:
+            game_urls[game_id] = response['url']
+    except Exception as e:
+        print(f"Failed to save game {game_id}: {e}")
 
 def delete_game(game_id: str):
-    """Delete game from disk"""
-    game_file = GAMES_DIR / f"{game_id}.pkl"
-    if game_file.exists():
-        game_file.unlink()
+    """Delete game from Vercel Blob"""
+    try:
+        if game_id in game_urls:
+            blob_delete(game_urls[game_id])
+            del game_urls[game_id]
+    except Exception as e:
+        print(f"Failed to delete game {game_id}: {e}")
 
 # Keep in-memory cache for performance
 games: Dict[str, dict] = {}

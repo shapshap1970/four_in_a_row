@@ -9,6 +9,9 @@ pydantic>=2.10.0
 # Core game (essential)
 bitarray>=3.8.1
 
+# Vercel Blob for game persistence (serverless storage)
+vercel-blob>=0.4.2
+
 # Rust AI extension (~185KB, depth 12!)
 # Using Python 3.12 wheel (Vercel default)
 ./wheels/four_in_a_row_rust-0.1.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
