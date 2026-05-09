@@ -281,7 +281,18 @@ def extend_tree_branch_sync(game_id: str):
         for pos_board, player, num_play, last_col in positions_to_compute:
             try:
                 # Use Rust AI if available (10-50x faster!)
-                if is_rust_ai_available():
+                if RUST_EXTENSION_AVAILABLE:
+                    # Use Rust Python extension
+                    board_str = '\n'.join(''.join(row) for row in pos_board.board)
+                    player_num = 1 if player == 'X' else 2
+                    eval_score, best_move = rust_get_best_move(
+                        board_str,
+                        target_depth,
+                        player_num,
+                        num_play
+                    )
+                elif is_rust_ai_available():
+                    # Use Rust binary (local only)
                     eval_score, best_move = compute_move_rust(
                         pos_board,
                         target_depth,
