@@ -539,8 +539,8 @@ async def new_game(request: NewGameRequest):
         if RUST_EXTENSION_AVAILABLE:
             # Rust Python extension: fastest + smallest (~170KB)
             ai_engine = None  # Will use rust_get_best_move directly
-            search_depth = 12  # Rust can handle depth 12 easily!
-            print("✓ Vercel mode: Using Rust Python extension at depth 12 (FAST!)")
+            search_depth = 14  # Rust can handle depth 14!
+            print("✓ Vercel mode: Using Rust Python extension at depth 14 (FAST!)")
         else:
             # Fallback: Python AI at depth 9
             ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
@@ -557,7 +557,7 @@ async def new_game(request: NewGameRequest):
         # Local: Standard AI
         ai_engine = FourInARowWithProgress(rows=6, cols=7, consec_to_win=4,
                                          consec_moves=2, show_progress=False)
-        search_depth = 12  # Local: Rust AI can handle depth 12!
+        search_depth = 14  # Local: Rust AI can handle depth 14!
 
     # Human is always 'X', AI is always 'O'
     current_player = 'X' if request.player_starts else 'O'

@@ -4,7 +4,7 @@ Fast Rust-based AI engine for Four-in-a-Row (Connect Four) game, with Python bin
 
 ## Features
 
-- **Blazing fast**: Depth 12 search in under 1 second
+- **Blazing fast**: Depth 14 search in under 2 seconds
 - **Small size**: ~170KB wheel (1000x smaller than Numba+NumPy)
 - **Minimax algorithm** with alpha-beta pruning
 - **Python bindings** via PyO3
@@ -24,10 +24,10 @@ from four_in_a_row_rust.four_in_a_row_rust import get_best_move
 # 'X' = player 1, 'O' = player 2, ' ' = empty
 board = "       \n       \n       \n       \n       \n       "
 
-# Get best move at depth 12
+# Get best move at depth 14
 score, best_move = get_best_move(
     board,      # Board string
-    12,         # Search depth
+    14,         # Search depth
     1,          # Current player (1=X, 2=O)
     2           # Number of moves before switching player
 )
@@ -40,6 +40,7 @@ print(f"Best move: column {best_move}, score: {score}")
 Typical performance on Apple M1:
 - Depth 10: 0.3s
 - Depth 12: 0.8-2.3s
+- Depth 14: 2-8s
 
 Compare to Python-only (depth 9):  3-8s
 
