@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict
+from threat_detector import detect_must_block_moves
 from collections import defaultdict
 import uuid
 import json
@@ -724,8 +725,22 @@ async def make_ai_move(game_id: str):
     best_column = None
     cache_hit = False
 
-    # Priority 1: Check dynamic cache
-    if game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
+    # PRIORITY 0: Check for immediate win/block threats (bypasses cache!)
+    # Only check if game is somewhat advanced (at least 6 pieces on board)
+    total_pieces = sum(1 for row in board.board for cell in row if cell != ' ')
+    if total_pieces >= 6:
+        forced_type, forced_moves = detect_must_block_moves(board, 'O', consec_to_win=4)
+        if forced_type == 'win':
+            # We can win immediately!
+            best_column = forced_moves[0]  # Just take first winning move
+            print(f"  ⚡ IMMEDIATE WIN available! Playing column {best_column}")
+        elif forced_type == 'block':
+            # Opponent can win next turn - MUST block!
+            best_column = forced_moves[0]  # Take first blocking move
+            print(f"  🛡️  BLOCKING opponent threat! Playing column {best_column}")
+
+    # Priority 1: Check dynamic cache (if no forced move)
+    elif game_id in dynamic_cache and board_hash in dynamic_cache[game_id]:
         cache_entry = dynamic_cache[game_id][board_hash]
         best_column = cache_entry[1] if isinstance(cache_entry, list) else cache_entry
         cache_hit = True
