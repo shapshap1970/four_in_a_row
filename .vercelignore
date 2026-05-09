@@ -30,7 +30,7 @@ estimate_*.py
 .DS_Store
 
 # Large files
-opening_book_7x6.json.gz
+# opening_book_7x6.json.gz - Re-enabled (460KB, should fit in 50MB limit)
 opening_book_generator/
 *.md
 DEPLOYMENT_SUMMARY.md
