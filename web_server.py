@@ -19,7 +19,21 @@ from board import Board
 from four_in_a_row_with_progress import FourInARowWithProgress
 from rust_ai_wrapper import compute_move_rust, is_rust_ai_available
 
-# Import Numba AI for Vercel deployment
+# Import Rust Python extension for Vercel deployment (fastest, smallest)
+try:
+    from four_in_a_row_rust.four_in_a_row_rust import get_best_move as rust_get_best_move
+    RUST_EXTENSION_AVAILABLE = True
+    print("✓ Rust Python extension successfully imported")
+except ImportError as e:
+    RUST_EXTENSION_AVAILABLE = False
+    rust_get_best_move = None
+    print(f"⚠️ Rust extension import failed: {e}")
+except Exception as e:
+    RUST_EXTENSION_AVAILABLE = False
+    rust_get_best_move = None
+    print(f"⚠️ Rust extension error: {e}")
+
+# Import Numba AI as fallback
 try:
     from four_in_a_row_numba import FourInARowNumba
     NUMBA_AVAILABLE = True
@@ -343,8 +357,13 @@ async def new_game(request: NewGameRequest):
     # Adjust AI engine and depth based on environment
     import os
     if os.getenv('VERCEL_DEPLOYMENT') or os.getenv('DISABLE_RUST_AI'):
-        # Vercel: Use Numba AI for speed
-        if NUMBA_AVAILABLE:
+        # Vercel: Priority order - Rust extension > Numba > Python fallback
+        if RUST_EXTENSION_AVAILABLE:
+            # Rust Python extension: fastest + smallest (~170KB)
+            ai_engine = None  # Will use rust_get_best_move directly
+            search_depth = 12  # Rust can handle depth 12 easily!
+            print("✓ Vercel mode: Using Rust Python extension at depth 12 (FAST!)")
+        elif NUMBA_AVAILABLE:
             ai_engine = FourInARowNumba(rows=6, cols=7, consec_to_win=4, consec_moves=2)
             search_depth = 10  # Numba can handle depth 10 on Vercel!
             print("✓ Vercel mode: Using Numba AI at depth 10 (5-10x faster!)")
@@ -434,9 +453,18 @@ async def make_move(game_id: str, move: MoveRequest):
         # Update player turn based on consecutive moves rule
         ai_engine = game['ai_engine']
 
-        # Determine next player and number of plays
-        next_player = ai_engine.next_player('X', game['number_of_play'], first_play=is_first_move)
-        next_number = ai_engine.next_number_of_play(game['number_of_play'], first_play=is_first_move)
+        if ai_engine:
+            # Determine next player and number of plays
+            next_player = ai_engine.next_player('X', game['number_of_play'], first_play=is_first_move)
+            next_number = ai_engine.next_number_of_play(game['number_of_play'], first_play=is_first_move)
+        else:
+            # Manual logic when using Rust extension (no ai_engine object)
+            if game['number_of_play'] == 1:
+                next_player = 'O'
+                next_number = 2
+            else:
+                next_player = 'X'
+                next_number = game['number_of_play'] - 1
 
         game['current_player'] = next_player
         game['number_of_play'] = next_number
@@ -509,12 +537,28 @@ async def make_ai_move(game_id: str):
         cache_hit = True
         print(f"  ✓ Dynamic cache hit")
 
-    # Priority 2: Compute with Rust AI at depth 12
+    # Priority 2: Compute with Rust AI
     else:
         search_depth = game['search_depth']
 
-        # Use Rust AI if available (10-50x faster!)
-        if is_rust_ai_available():
+        # Priority 1: Rust Python extension (Vercel-compatible, ~170KB)
+        if RUST_EXTENSION_AVAILABLE:
+            loop = asyncio.get_event_loop()
+            # Convert board to string format for Rust extension
+            board_str = '\n'.join(''.join(row) for row in board.board)
+            player_num = 2  # 'O' = 2
+
+            eval_score, best_column = await loop.run_in_executor(
+                None,
+                rust_get_best_move,
+                board_str,
+                search_depth,
+                player_num,
+                game['number_of_play']
+            )
+            print(f"  🚀 Rust extension (depth {search_depth}) - FAST!")
+        # Priority 2: Standalone Rust AI binary (local only)
+        elif is_rust_ai_available():
             loop = asyncio.get_event_loop()
             eval_score, best_column = await loop.run_in_executor(
                 None,
@@ -524,9 +568,9 @@ async def make_ai_move(game_id: str):
                 'O',
                 game['number_of_play']
             )
-            print(f"  🚀 Rust AI (depth {search_depth}) - FAST!")
+            print(f"  🚀 Rust AI binary (depth {search_depth}) - FAST!")
+        # Priority 3: Python AI fallback
         else:
-            # Fallback to Python AI
             ai_engine = game['ai_engine']
             loop = asyncio.get_event_loop()
             eval_score, best_column = await loop.run_in_executor(
@@ -561,8 +605,17 @@ async def make_ai_move(game_id: str):
     else:
         # Update player turn based on consecutive moves rule
         ai_engine = game['ai_engine']
-        next_player = ai_engine.next_player('O', game['number_of_play'], first_play=is_first_move)
-        next_number = ai_engine.next_number_of_play(game['number_of_play'], first_play=is_first_move)
+        if ai_engine:
+            next_player = ai_engine.next_player('O', game['number_of_play'], first_play=is_first_move)
+            next_number = ai_engine.next_number_of_play(game['number_of_play'], first_play=is_first_move)
+        else:
+            # Manual logic when using Rust extension (no ai_engine object)
+            if game['number_of_play'] == 1:
+                next_player = 'X'
+                next_number = 2
+            else:
+                next_player = 'O'
+                next_number = game['number_of_play'] - 1
         game['current_player'] = next_player
         game['number_of_play'] = next_number
 
